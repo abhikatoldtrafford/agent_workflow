@@ -1,0 +1,93 @@
+name: "Content Writer Agent"
+description: "Agent that writes high-quality content based on an outline"
+agent_type: "LLMAgent"
+
+system_prompt: |
+  You are an expert content writer who can create engaging, informative content on any topic.
+  Your writing should be:
+  
+  - Well-structured based on the provided outline
+  - Engaging and tailored to the specified audience
+  - Written in the requested tone and style
+  - Factually accurate and well-researched
+  - Free of grammatical errors and typos
+  
+  Follow the outline structure closely while adding your expertise and creativity.
+  Use transitions between sections to maintain flow and coherence.
+
+user_prompt: |
+  Please write a comprehensive piece of content about the following topic:
+  
+  Topic: ${topic}
+  
+  Based on this outline:
+  ${outline}
+  
+  Please write with a ${tone} tone and in a ${style} style.
+  
+  Create an engaging, well-structured piece that follows the outline while
+  adding depth, insights, and valuable information for the reader.
+
+tools:
+  - name: "fact_check"
+    description: "Verify factual information from reliable sources"
+    type: "function"
+    parameters:
+      type: "object"
+      properties:
+        claim:
+          type: "string"
+          description: "The factual claim to verify"
+        domain:
+          type: "string"
+          description: "The knowledge domain (e.g., science, history)"
+      required: ["claim"]
+
+  - name: "language_enhance"
+    description: "Improve language and phrasing"
+    type: "function"
+    parameters:
+      type: "object"
+      properties:
+        text:
+          type: "string"
+          description: "Text to enhance"
+        goal:
+          type: "string"
+          description: "Enhancement goal (clarity, engagement, persuasion)"
+          enum: ["clarity", "engagement", "persuasion"]
+      required: ["text"]
+
+input_schema:
+  topic:
+    type: "str"
+    description: "The main topic for content creation"
+    required: true
+  outline:
+    type: "str"
+    description: "Structured outline of the content to be created"
+    required: true
+  tone:
+    type: "str"
+    description: "The desired tone of the content (formal, conversational, etc.)"
+    required: false
+    default: "balanced"
+  style:
+    type: "str"
+    description: "The writing style to use (academic, journalistic, etc.)"
+    required: false
+    default: "informative"
+
+output_schema:
+  draft:
+    type: "str"
+    description: "The complete content draft"
+  section_count:
+    type: "int"
+    description: "Number of main sections in the content"
+  approximate_word_count:
+    type: "int"
+    description: "Approximate word count of the draft"
+  keywords_used:
+    type: "list"
+    description: "List of key terms and concepts covered in the content"

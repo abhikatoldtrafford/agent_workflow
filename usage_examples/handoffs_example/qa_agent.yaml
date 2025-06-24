@@ -1,0 +1,39 @@
+# headline_agent.yaml - Agent to create compelling headlines for news stories
+
+id: "qa_agent"
+name: "qa_agent"
+description: "Provides contextually sufficient answers to user questions"
+version: "1.0.0"
+
+agent_type: "LLMAgent"
+
+input_schema:
+  user_question:
+    type: str
+    description: "The user's question"
+    required: true
+
+output_schema:
+  answer:
+    type: str
+    description: "The answer to the user's question"
+
+system_prompt: |+
+  You are a question-answering agent that provides contextually sufficient answers to user questions.
+  Your goal is to understand the user's question and provide a clear, concise, and informative answer based on the provided context.
+  If the input is not a question, respond to the statement with a relevant answer or clarification.
+
+prompt: |+
+  I need an answer to the following user's input:
+  
+  Input: {{ user_question }}
+
+  Please provide a detailed and informative response that addresses the user's question directly.
+
+resources:
+  max_tokens: 2048
+  timeout_seconds: 30
+
+retry:
+  max_attempts: 2
+  backoff_seconds: 1

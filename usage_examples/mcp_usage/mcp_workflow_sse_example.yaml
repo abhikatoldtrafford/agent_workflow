@@ -1,0 +1,51 @@
+name: "MCP Server Streaming Example"
+description: "Demonstrates using MCP servers with streaming capability (SSE)"
+version: "1.0.0"
+
+stages:
+    - name: "OpenAI Operations"
+      description: "Use OpenAI MCP server with streaming capability"
+      execution_type: "sequential"
+      tasks:
+        - name: "Stream from OpenAI API"
+          description: "Use the OpenAI MCP server with streaming capability"
+          agent:
+            id: "mcp-agent"
+            name: "MCP Agent with SSE"
+            description: "Agent that uses MCP servers with streaming capability"
+            agent_type: "LLMAgent"
+            
+            # MCP server configuration - use the streamable server
+            mcp_servers:
+              - "openai-mcp-server"
+            
+            # Input and output schema
+            input_schema:
+              user_query:
+                type: "string"
+                description: "User's query to be processed with streaming"
+                required: true
+            
+            output_schema:
+              response:
+                type: "string"
+                description: "Streamed response to the user's query"
+            
+            # Prompts
+            system_prompt: |
+              You are an assistant that can provide detailed, accurate responses through a streaming interface.
+              Use the available MCP server with streaming capability to respond to the user's query.
+              Provide clear, informative answers with a conversational tone.
+              
+            user_prompt: |
+              User query: {{ user_query }}
+              
+              Please analyze the query and provide a detailed response using the streaming capability.
+          
+          # Input mapping
+          inputs:
+            user_query: "${workflow.inputs.user_query}"
+          
+          # Output mapping
+          outputs:
+            result: "${agent.output_schema.response}"

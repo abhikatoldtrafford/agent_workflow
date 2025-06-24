@@ -1,0 +1,30 @@
+name: "English Hindi QA"
+description: "Receive questions in English and provide answers in Hindi"
+version: "1.0.0"
+
+stages:
+  - name: "Handoffs"
+    description: "Decide whether to hand off the question to the QA Agent or Translation Agent"
+    execution_type: "handoff"
+    tasks:
+      - name: "answer_question"
+        description: "Search for relevant images for the story"
+        agent:
+          id: "qa_agent"
+          name: "Question Answer Agent"
+          ref: "qa_agent.yaml"
+        inputs:
+          user_question: "${workflow.input_schema.user_question}"
+        outputs:
+          answer: "${agent.output_schema.answer}"
+      - name: "translate_answer"
+        description: "Translate the answer from English to Hindi"
+        agent:
+          id: "translation_agent"
+          name: "Translation Agent"
+          ref: "translation_agent.yaml"
+        inputs:
+          text: "${workflow.input_schema.user_question}"
+        outputs:
+          translated_text: "${agent.output_schema.translated_text}"
+

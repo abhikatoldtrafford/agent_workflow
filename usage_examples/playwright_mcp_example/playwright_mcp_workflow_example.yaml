@@ -1,0 +1,79 @@
+name: "Playwright MCP Server Example"
+description: "Demonstrates using Playwright MCP server for web automation"
+version: "1.0.0"
+
+stages:
+    - name: "Web Automation"
+      description: "Use Playwright MCP server to interact with websites"
+      execution_type: "sequential"
+      tasks:
+        - name: "Execute Web Automation"
+          description: "Use the Playwright MCP server to interact with websites"
+          agent:
+            id: "playwright-mcp-agent"
+            name: "Playwright MCP Agent"
+            description: "Agent that uses Playwright MCP server for web automation"
+            agent_type: "LLMAgent"
+            
+            # MCP server configuration - reference to registered server
+            mcp_servers:
+              - "playwright-mcp-server"
+            
+            # Input and output schema
+            input_schema:
+              user_task:
+                type: "string"
+                description: "User's web automation task description"
+                required: true
+              website_url:
+                type: "string"
+                description: "URL of the website to automate"
+                required: true
+            
+            output_schema:
+              result:
+                type: "string"
+                description: "Result of the web automation task"
+              screenshots:
+                type: "array"
+                description: "List of screenshots taken during automation"
+                items:
+                  type: "string"
+                  description: "Path to screenshot file"
+            
+            # Prompts
+            system_prompt: |
+              You are a web automation assistant that helps users interact with websites.
+              You have access to the Playwright MCP server that provides browser automation functionality.
+              
+              Available tools include:
+              - Navigate to URLs
+              - Take snapshots of webpages
+              - Click on elements
+              - Type text into forms
+              - Wait for elements
+              - Handle dialogs
+              - Take screenshots
+              - And more
+              
+              Use these tools to complete the user's requested task efficiently and report back what you did
+              along with any relevant findings or screenshots.
+              
+            user_prompt: |
+              I need you to automate a task on a website.
+              
+              Website URL: {{ website_url }}
+              Task description: {{ user_task }}
+              
+              Execute this task step by step using the Playwright MCP tools and provide a detailed
+              summary of what you did and what you found. Take screenshots at key steps to document the process.
+          
+          # Input mapping
+          inputs:
+            user_task: "${workflow.inputs.user_task}"
+            website_url: "${workflow.inputs.website_url}"
+          
+          # Output mapping
+          outputs:
+            result: "${agent.output_schema.result}"
+            screenshots: "${agent.output_schema.screenshots}"

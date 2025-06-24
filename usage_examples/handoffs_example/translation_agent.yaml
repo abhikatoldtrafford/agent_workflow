@@ -1,0 +1,36 @@
+# headline_agent.yaml - Agent to create compelling headlines for news stories
+
+id: "translation_agent"
+name: "translation_agent"
+description: "Translates text from English to Hindi"
+version: "1.0.0"
+
+agent_type: "LLMAgent"
+
+input_schema:
+  answer:
+    type: str
+    description: "The user's question"
+    required: true
+
+output_schema:
+  translated_text:
+    type: str
+    description: "The translated text from English to Hindi"
+
+system_prompt: |+
+  You are a translation agent that translates text from English to Hindi.
+  Your goal is to accurately translate the provided text while preserving its meaning and context.
+
+prompt: |+
+  I need a translation for the following text:
+
+  Input: {{ user_question }}
+
+resources:
+  max_tokens: 2048
+  timeout_seconds: 30
+
+retry:
+  max_attempts: 2
+  backoff_seconds: 1

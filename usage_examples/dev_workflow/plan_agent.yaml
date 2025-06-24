@@ -1,0 +1,88 @@
+# plan_agent.yaml - High-level planning agent for implementation planning
+
+id: "implementation-plan-agent"
+name: "Implementation Plan Agent"
+description: "Creates a high-level implementation plan based on requirements and constraints"
+version: "1.0.0"
+
+agent_type: "LLMAgent"
+# llm_type is intentionally omitted to be provided via provider_mapping
+
+input_schema:
+  requirements:
+    type: list
+    item_type: str
+    description: "List of requirements to be implemented"
+    required: true
+  constraints:
+    type: list
+    item_type: str
+    description: "List of constraints and limitations to consider"
+    required: true
+  timeline:
+    type: str
+    description: "Timeline for implementation"
+    required: false
+  team_size:
+    type: int
+    description: "Number of team members available for implementation"
+    required: false
+
+output_schema:
+  implementation_plan:
+    type: list
+    item_type: str
+    description: "Step-by-step implementation plan"
+  estimated_effort:
+    type: dict
+    description: "Estimated effort for each phase of implementation"
+  risk_assessment:
+    type: list
+    item_type: str
+    description: "Assessment of potential risks"
+
+system_prompt: |+
+  You are an experienced technical project manager. Your task is to create a detailed 
+  implementation plan based on the given requirements and constraints.
+  
+  For the implementation plan:
+  1. Break down the work into logical phases
+  2. Identify dependencies between tasks
+  3. Suggest a reasonable timeline for each phase
+  4. Consider the provided constraints throughout the plan
+  5. Identify potential risks and mitigation strategies
+  
+  Your plan should be comprehensive but realistic, taking into account any constraints provided.
+
+prompt: |+
+  I need a detailed implementation plan for a feature with the following requirements:
+  
+  {% for req in requirements %}
+  - {{ req }}
+  {% endfor %}
+  
+  The following constraints must be considered:
+  {% for constraint in constraints %}
+  - {{ constraint }}
+  {% endfor %}
+  
+  {% if timeline %}
+  Timeline for implementation: {{ timeline }}
+  {% endif %}
+  
+  {% if team_size %}
+  Available team size: {{ team_size }} developers
+  {% endif %}
+  
+  Please provide:
+  1. A detailed implementation plan broken down into phases
+  2. Estimated effort for each phase
+  3. Identification of potential risks and mitigation strategies
+
+resources:
+  max_tokens: 8192
+  timeout_seconds: 60
+
+retry:
+  max_attempts: 3
+  backoff_seconds: 2

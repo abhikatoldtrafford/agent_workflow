@@ -1,0 +1,98 @@
+# ui_design_agent.yaml - UI/UX design agent for feature implementation
+
+id: "ui-design-agent"
+name: "UI/UX Design Agent"
+description: "Designs user interface elements and user experience flows for feature implementation"
+version: "1.0.0"
+
+agent_type: "LLMAgent"
+# llm_type is intentionally omitted to be provided via provider_mapping
+
+input_schema:
+  implementation_plan:
+    type: list
+    item_type: str
+    description: "High-level implementation plan from the planning phase"
+    required: true
+  brand_guidelines:
+    type: str
+    description: "Brand guidelines and design system information"
+    required: false
+  user_personas:
+    type: list
+    item_type: dict
+    description: "User personas to consider in the design"
+    required: false
+  accessibility_requirements:
+    type: str
+    description: "Accessibility requirements to consider"
+    required: false
+
+output_schema:
+  ui_wireframes:
+    type: list
+    item_type: str
+    description: "Text descriptions of UI wireframes for each screen"
+  user_flows:
+    type: list
+    item_type: str
+    description: "User flow diagrams showing navigation between screens"
+  ux_considerations:
+    type: list
+    item_type: str
+    description: "UX considerations and recommendations"
+
+system_prompt: |+
+  You are a UI/UX design expert. Your task is to create wireframe descriptions and user flows for 
+  a feature implementation based on the provided implementation plan.
+  
+  For the UI designs:
+  1. Create clear textual descriptions of each screen/interface element
+  2. Focus on intuitive and user-friendly design
+  3. Consider accessibility requirements
+  4. Ensure consistency with brand guidelines and design systems
+  5. Design for different device sizes where appropriate
+  
+  For the user flows:
+  1. Map out the user journey through the feature
+  2. Identify key decision points and user actions
+  3. Consider error states and edge cases
+  
+  Your designs should balance aesthetic appeal with usability and functionality.
+
+prompt: |+
+  I need UI/UX designs for a feature with the following implementation plan:
+  
+  {% for step in implementation_plan %}
+  - {{ step }}
+  {% endfor %}
+  
+  {% if brand_guidelines %}
+  Brand guidelines to follow:
+  {{ brand_guidelines }}
+  {% endif %}
+  
+  {% if user_personas %}
+  User personas to consider:
+  {% for persona in user_personas %}
+  - {{ persona.name }}: {{ persona.description }}
+  {% endfor %}
+  {% endif %}
+  
+  {% if accessibility_requirements %}
+  Accessibility requirements:
+  {{ accessibility_requirements }}
+  {% endif %}
+  
+  Please provide:
+  1. Detailed text descriptions of UI wireframes for each screen
+  2. User flow diagrams showing navigation between screens
+  3. UX considerations and recommendations
+
+resources:
+  max_tokens: 8192
+  timeout_seconds: 60
+
+retry:
+  max_attempts: 2
+  backoff_seconds: 1

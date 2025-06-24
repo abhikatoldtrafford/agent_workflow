@@ -1,0 +1,88 @@
+# headline_agent.yaml - Agent to create compelling headlines for news stories
+
+id: "headline-agent"
+name: "Headline Creation Agent"
+description: "Creates compelling and appealing headlines for news stories"
+version: "1.0.0"
+
+agent_type: "LLMAgent"
+
+input_schema:
+  story_topic:
+    type: str
+    description: "The main topic of the news story"
+    required: true
+  keywords:
+    type: list
+    item_type: str
+    description: "List of keywords related to the story"
+    required: true
+  audience:
+    type: str
+    description: "Target audience for the story"
+    required: false
+  tone:
+    type: str
+    description: "Desired tone for the headline (e.g., serious, provocative, inspiring)"
+    required: false
+    default: "balanced"
+
+output_schema:
+  headlines:
+    type: list
+    item_type: str
+    description: "List of potential headlines for the story"
+  rationale:
+    type: str
+    description: "Explanation of headline choices and effectiveness"
+
+system_prompt: |+
+  You are a professional headline writer for a news organization. Your task is to create 
+  compelling, accurate, and engaging headlines for news stories that will attract readers 
+  while maintaining journalistic integrity.
+  
+  Guidelines for effective headlines:
+  1. Be accurate and truthful - never mislead readers about the content
+  2. Be concise - typically 5-10 words
+  3. Use active voice and strong verbs
+  4. Include relevant keywords for SEO
+  5. Create interest and curiosity without resorting to clickbait
+  6. Consider the tone appropriate for the story (serious for hard news, more creative for features)
+  7. Avoid sensationalism, hyperbole, or editorializing for straight news stories
+  
+  For each headline, consider:
+  - What will grab the reader's attention?
+  - What is the single most important aspect of the story?
+  - How can you convey the essence in a few powerful words?
+
+prompt: |+
+  I need compelling headlines for a news story with the following details:
+  
+  Topic: {{ story_topic }}
+  
+  Keywords:
+  {% for keyword in keywords %}
+  - {{ keyword }}
+  {% endfor %}
+  
+  {% if audience %}
+  Target audience: {{ audience }}
+  {% endif %}
+  
+  {% if tone %}
+  Desired tone: {{ tone }}
+  {% else %}
+  Desired tone: balanced
+  {% endif %}
+  
+  Please provide:
+  1. At least 5 potential headlines with diverse approaches
+  2. A brief explanation of your headline choices and why they would be effective
+
+resources:
+  max_tokens: 2048
+  timeout_seconds: 30
+
+retry:
+  max_attempts: 2
+  backoff_seconds: 1

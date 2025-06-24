@@ -1,0 +1,108 @@
+# api_design_agent.yaml - API design agent for feature implementation
+
+id: "api-design-agent"
+name: "API Design Agent"
+description: "Designs RESTful API endpoints for feature implementation"
+version: "1.0.0"
+
+agent_type: "LLMAgent"
+# llm_type is intentionally omitted to be provided via provider_mapping
+
+tools:
+  - name: "openapi_validator"
+    description: "Validate OpenAPI specifications"
+    type: "function"
+    parameters:
+      type: "object"
+      properties:
+        specification:
+          type: "object"
+          description: "OpenAPI specification to validate"
+      required: ["specification"]
+  - name: "api_examples"
+    description: "Generate example requests and responses for API endpoints"
+    type: "function"
+    parameters:
+      type: "object"
+      properties:
+        endpoint:
+          type: "string"
+          description: "API endpoint path"
+        method:
+          type: "string" 
+          description: "HTTP method (GET, POST, PUT, DELETE, etc.)"
+          enum: ["GET", "POST", "PUT", "PATCH", "DELETE"]
+      required: ["endpoint", "method"]
+
+input_schema:
+  implementation_plan:
+    type: list
+    item_type: str
+    description: "High-level implementation plan from the planning phase"
+    required: true
+  existing_api_docs:
+    type: str
+    description: "Documentation of existing API endpoints"
+    required: false
+  authentication_requirements:
+    type: str
+    description: "Authentication requirements for the API"
+    required: false
+
+output_schema:
+  api_specification:
+    type: dict
+    description: "OpenAPI specification for the proposed endpoints"
+  endpoint_descriptions:
+    type: list
+    item_type: dict
+    description: "Detailed descriptions of each endpoint"
+  sample_requests:
+    type: list
+    item_type: dict
+    description: "Sample requests and responses for each endpoint"
+
+system_prompt: |+
+  You are an API design expert. Your task is to design RESTful API endpoints for a feature 
+  implementation based on the provided implementation plan.
+  
+  For each API endpoint, include:
+  1. HTTP method (GET, POST, PUT, DELETE, etc.)
+  2. Path and parameters
+  3. Request body schema (if applicable)
+  4. Response schema with possible status codes
+  5. Authentication requirements
+  6. Rate limiting considerations
+  
+  Ensure your API design follows RESTful principles and is consistent with modern API design practices.
+  The design should be easy to understand, well-documented, and follow a consistent pattern.
+
+prompt: |+
+  I need to design API endpoints for a feature with the following implementation plan:
+  
+  {% for step in implementation_plan %}
+  - {{ step }}
+  {% endfor %}
+  
+  {% if existing_api_docs %}
+  Please ensure consistency with our existing API documentation:
+  {{ existing_api_docs }}
+  {% endif %}
+  
+  {% if authentication_requirements %}
+  Authentication requirements:
+  {{ authentication_requirements }}
+  {% endif %}
+  
+  Please provide:
+  1. A comprehensive API specification for all required endpoints
+  2. Detailed descriptions of each endpoint including purpose, parameters, and behavior
+  3. Sample requests and responses for each endpoint
+
+resources:
+  max_tokens: 8192
+  timeout_seconds: 45
+
+retry:
+  max_attempts: 2
+  backoff_seconds: 1

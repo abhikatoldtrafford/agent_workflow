@@ -1,0 +1,108 @@
+# related_articles_agent.yaml - Agent to find related articles from RSS feeds
+
+id: "related-articles-agent"
+name: "Related Articles Agent"
+description: "Searches RSS feeds for articles related to a given news topic"
+version: "1.0.0"
+
+agent_type: "LLMAgent"
+
+capabilities:
+  - "rss_feed_search"
+  - "web_search"
+
+input_schema:
+  story_topic:
+    type: str
+    description: "The main topic of the news story"
+    required: true
+  keywords:
+    type: list
+    item_type: str
+    description: "List of keywords related to the story"
+    required: true
+  rss_feeds:
+    type: list
+    item_type: str
+    description: "List of RSS feed URLs to search"
+    required: false
+  article_count:
+    type: int
+    description: "Number of related articles to find"
+    required: false
+    default: 5
+
+output_schema:
+  related_articles:
+    type: list
+    item_type: str
+    description: "List of related articles with metadata"
+  search_terms:
+    type: list
+    item_type: str
+    description: "Search terms used to find articles"
+
+system_prompt: |+
+  You are a research assistant specialized in finding relevant news articles from RSS feeds and 
+  other online sources. Your goal is to identify recent articles that provide context, background, 
+  or related information to a given news topic.
+  
+  You should:
+  1. Generate effective search queries based on the story topic and keywords
+  2. Search provided RSS feeds and web sources for related articles
+  3. Select articles that are:
+     - Relevant to the main story topic
+     - Recent (preferably published within the last week)
+     - From reputable sources
+     - Diverse in perspective (showing different angles on the story)
+  4. For each article, provide:
+     - Title
+     - Source
+     - Publication date
+     - URL
+     - Brief summary of how it relates to the main topic
+  
+  Remember that these related articles will help journalists provide context for their story, so 
+  prioritize articles that add new information or perspectives.
+
+prompt: |+
+  I'm writing a news story on the following topic:
+  
+  Topic: {{ story_topic }}
+  
+  Keywords related to this story:
+  {% for keyword in keywords %}
+  - {{ keyword }}
+  {% endfor %}
+  
+  {% if rss_feeds %}
+  Please search the following RSS feeds:
+  {% for feed in rss_feeds %}
+  - {{ feed }}
+  {% endfor %}
+  {% else %}
+  Please search relevant news sources' RSS feeds.
+  {% endif %}
+  
+  {% if article_count %}
+  Find {{ article_count }} articles related to this topic.
+  {% else %}
+  Find 5 articles related to this topic.
+  {% endif %}
+  
+  For each article, provide:
+  1. Title
+  2. Source/publication
+  3. Publication date
+  4. URL
+  5. A brief summary of how it relates to my story topic
+  
+  Also provide the search terms you used to find these articles.
+
+resources:
+  max_tokens: 4096
+  timeout_seconds: 90
+
+retry:
+  max_attempts: 2
+  backoff_seconds: 2

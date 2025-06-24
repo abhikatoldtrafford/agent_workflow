@@ -1,0 +1,51 @@
+name: "MCP Server Usage Example"
+description: "Demonstrates using MCP servers from YAML configuration"
+version: "1.0.0"
+
+stages:
+    - name: "Git Operations"
+      description: "Use Git MCP server to perform operations"
+      execution_type: "sequential"
+      tasks:
+        - name: "Execute Git Commands"
+          description: "Use the Git MCP server to perform operations"
+          agent:
+            id: "mcp-agent"
+            name: "MCP Agent"
+            description: "Agent that uses MCP servers"
+            agent_type: "LLMAgent"
+            
+            # MCP server configuration - inline definition
+            mcp_servers:
+              - "git-mcp-server"
+            
+            # Input and output schema
+            input_schema:
+              user_query:
+                type: "string"
+                description: "User's query about Git operations"
+                required: true
+            
+            output_schema:
+              response:
+                type: "string"
+                description: "Response to the user's query"
+            
+            # Prompts
+            system_prompt: |
+              You are a Git operations assistant that can help users with Git commands and operations.
+              You have access to an MCP server that provides Git-related functionality.
+              Use the available MCP servers to help answer the user's query about Git operations.
+              
+            user_prompt: |
+              User query: {{ user_query }}
+              
+              Analyze the query and use the appropriate MCP server endpoints to help answer it.
+          
+          # Input mapping
+          inputs:
+            user_query: "${workflow.inputs.user_query}"
+          
+          # Output mapping
+          outputs:
+            result: "${agent.output_schema.response}"

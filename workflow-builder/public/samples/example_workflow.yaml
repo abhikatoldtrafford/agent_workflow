@@ -1,0 +1,70 @@
+name: "Content Generation Workflow"
+description: "A workflow for generating content with multiple agents"
+version: "1.0.0"
+
+stages:
+  - name: "Content Planning"
+    description: "Plan the content structure and requirements"
+    execution_type: "sequential"
+    tasks:
+      - name: "Topic Research"
+        description: "Research the topic and gather key information"
+        agent:
+          ref: "research_agent.yaml"
+        inputs:
+          topic: "${workflow.inputs.topic}"
+          depth: "${workflow.inputs.research_depth}"
+        outputs:
+          research_results: "${agent.output_schema.findings}"
+          
+      - name: "Content Outline"
+        description: "Create an outline for the content"
+        agent:
+          ref: "outline_agent.yaml"
+        inputs:
+          topic: "${workflow.inputs.topic}"
+          research: "${stages.[Content Planning].tasks.[Topic Research].outputs.research_results}"
+          target_audience: "${workflow.inputs.audience}"
+        outputs:
+          outline: "${agent.output_schema.content_outline}"
+
+  - name: "Content Creation"
+    description: "Create the actual content based on the plan"
+    execution_type: "sequential"
+    tasks:
+      - name: "Draft Generation"
+        description: "Generate the initial content draft"
+        agent:
+          ref: "writer_agent.yaml"
+        inputs:
+          topic: "${workflow.inputs.topic}"
+          outline: "${stages.[Content Planning].tasks.[Content Outline].outputs.outline}"
+          tone: "${workflow.inputs.tone}"
+          style: "${workflow.inputs.style}"
+        outputs:
+          draft: "${agent.output_schema.draft}"
+          
+      - name: "Draft Review"
+        description: "Review and improve the initial draft"
+        agent:
+          ref: "editor_agent.yaml"
+        inputs:
+          draft: "${stages.[Content Creation].tasks.[Draft Generation].outputs.draft}"
+          guidelines: "${workflow.inputs.editorial_guidelines}"
+        outputs:
+          edited_content: "${agent.output_schema.improved_content}"
+          suggestions: "${agent.output_schema.improvement_notes}"
+
+  - name: "Finalization"
+    description: "Finalize and format the content"
+    execution_type: "sequential"
+    tasks:
+      - name: "Format Content"
+        description: "Format the content according to requirements"
+        agent:
+          ref: "formatter_agent.yaml"
+        inputs:
+          content: "${stages.[Content Creation].tasks.[Draft Review].outputs.edited_content}"
+          format: "${workflow.inputs.format}"
+        outputs:
+          formatted_content: "${agent.output_schema.formatted_content}"

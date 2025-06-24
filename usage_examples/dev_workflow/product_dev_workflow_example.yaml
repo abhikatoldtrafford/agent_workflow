@@ -1,0 +1,131 @@
+# example-workflow.yaml - Sample workflow using PlanAgents
+
+name: "Product Development Workflow"
+description: "Multi-agent workflow to plan, design, and validate a new product feature"
+version: "1.0.0"
+
+stages:
+  - name: "Initial Planning"
+    description: "Generate initial plan for the feature"
+    execution_type: "sequential"
+    tasks:
+      - name: "Requirements Analysis"
+        description: "Analyze and extract key requirements from the feature request"
+        agent:
+          ref: "plan_agent.yaml"  # Reference to a PlanAgent definition
+        inputs:
+          "${agent.input_schema.requirements}": "${workflow.inputs.feature_request}"
+          "${agent.input_schema.constraints}": "${workflow.inputs.constraints}"
+        outputs:
+          "implementation_plan": "${agent.output_schema.implementation_plan}"
+          "estimated_effort": "${agent.output_schema.estimated_effort}"
+          "risk_assessment": "${agent.output_schema.risk_assessment}"
+
+      - name: "High-Level Planning"
+        description: "Create a high-level implementation plan based on requirements"
+        agent:
+          ref: "plan_agent.yaml"  # Reference to a PlanAgent definition
+        inputs:
+          requirements: "${tasks.Requirements Analysis.outputs.implementation_plan}"
+          constraints: "${workflow.inputs.constraints}"
+        # Use special directive to get all outputs from agent schema
+        outputs:
+          "implementation_plan": "${agent.output_schema.implementation_plan}"
+          "estimated_effort": "${agent.output_schema.estimated_effort}"
+          "risk_assessment": "${agent.output_schema.risk_assessment}"
+
+  - name: "Detailed Design"
+    description: "Create detailed designs for different aspects of the feature"
+    execution_type: "parallel"  # Run these tasks in parallel
+    tasks:
+      - name: "API Design"
+        description: "Design API endpoints for the feature"
+        agent:
+          ref: "api_design_agent.yaml"
+        inputs:
+          implementation_plan: "${stages.[Initial Planning].tasks.[High-Level Planning].outputs.implementation_plan}"
+        # Use special directive to get all outputs from agent schema
+        outputs:
+          "api_specification": "${agent.output_schema.api_specification}"
+          "endpoint_descriptions": "${agent.output_schema.endpoint_descriptions}"
+          "sample_requests": "${agent.output_schema.sample_requests}"
+
+      - name: "UI/UX Design"
+        description: "Design user interface elements for the feature"
+        agent:
+          ref: "ui_design_agent.yaml"
+        inputs:
+          implementation_plan: "${stages.[Initial Planning].tasks.[High-Level Planning].outputs.implementation_plan}"
+        # Use special directive to get a specific field from agent schema
+        outputs:
+          "ui_wireframes": "${agent.output_schema.ui_wireframes}"
+          "user_flows": "${agent.output_schema.user_flows}"
+          "ux_considerations": "${agent.output_schema.ux_considerations}"
+
+      - name: "Database Schema Design"
+        description: "Design database schema changes required for the feature"
+        agent:
+          ref: "db_design_agent.yaml"
+        inputs:
+          implementation_plan: "${stages.[Initial Planning].tasks.[High-Level Planning].outputs.implementation_plan}"
+        outputs:
+          "db_schema_changes": "${agent.output_schema.db_schema_changes}"
+          "migration_strategy": "${agent.output_schema.migration_strategy}"
+          "performance_considerations": "${agent.output_schema.performance_considerations}"
+          "entity_relationship_diagram": "${agent.output_schema.entity_relationship_diagram}"
+
+
+  - name: "Validation"
+    description: "Validate the designs against requirements"
+    execution_type: "sequential"
+    condition: "${workflow.inputs.validation_needed} == true"  # Conditional execution
+    tasks:
+      - name: "Technical Review"
+        description: "Review and validate all technical designs"
+        prompt: |+
+
+          {{ user_query }}
+        agent:
+          # Inline agent definition instead of reference
+          id: "technical-review-agent"
+          name: "Technical Review Agent"
+          agent_type: "LLMAgent"
+          system_prompt: |
+            You are a technical reviewer responsible for ensuring that designs meet all requirements.
+            Validate that the proposed designs satisfy all requirements and constraints.
+
+          input_schema:
+            implementation_plan:
+              type: list
+              item_type: str
+              description: "Step-by-step implementation plan"
+            api_specification:
+              type: dict
+              description: "OpenAPI specification for the proposed endpoints"
+            ui_wireframes:
+              type: list
+              item_type: str
+              description: "Text descriptions of UI wireframes for each screen"
+            db_schema_changes:
+              type: list
+              item_type: str
+              description: "List of database schema changes required"
+
+          output_schema:
+            validation_results:
+              type: list
+              item_type: str
+              description: "The final Validation results"
+            suggested_improvements:
+              type: list
+              item_type: str
+              description: "The final improvements suggested by the agent"
+
+        inputs:
+          requirements: "${stages.[Initial Planning].tasks.[Requirements Analysis].outputs.requirements_list}"
+          api_design: "${stages.[Detailed Design].tasks.[API Design].outputs.api_specification}"
+          ui_design: "${stages.[Detailed Design].tasks.[UI/UX Design].outputs.ui_wireframes}"
+          db_design: "${stages.[Detailed Design].tasks.[Database Schema Design].outputs.db_schema_changes}"
+        outputs:
+          "validation_results": "${agent.output_schema.validation_results}"
+          "suggested_improvements": "${agent.output_schema.suggested_improvements}"

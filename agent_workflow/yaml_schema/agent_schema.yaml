@@ -1,0 +1,102 @@
+# agent.yaml - Enhanced agent definition for workflow integration
+
+PlanAgent:
+  # Basic agent identification
+  id:
+    type: str
+    description: "Unique identifier for this agent"
+    required: true
+  name:
+    type: str
+    description: "Human-readable name for this agent"
+  description:
+    type: str
+    description: "Description of what this agent does"
+  version:
+    type: str
+    description: "Version of this agent definition"
+
+  # Agent implementation details
+  agent_type:
+    type: str
+    description: "Type of Agent being described, reference from agent_types.yaml"
+    value: LLMAgent
+    required: true
+  
+  # The llm_type is now optional as it can be provided by provider_mapping
+#  llm_type:
+#    type: str
+#    description: "Type of the LLM being used (optional, can be overridden by provider_mapping)"
+#    required: false
+  
+  # Tool configuration
+  tools:
+    type: list
+    description: "List of tools that this agent can use"
+    required: false
+    item_type: dict
+    example:
+      - name: "search_web"
+        description: "Search the web for information"
+        type: "function"
+        parameters:
+          type: "object"
+          properties:
+            query:
+              type: "string"
+              description: "Search query"
+          required: ["query"]
+
+  # MCP servers configuration
+  mcp_servers:
+    description: "a list of MCP server names that this agent can use"
+    type: list
+
+  # Input/output schema
+  input_schema:
+    type: dict
+    description: "Schema defining expected input parameters"
+    example:
+      task_description:
+        type: str
+        description: "Description of the task to be performed"
+        required: true
+      context:
+        type: str
+        description: "Additional context for the task"
+        required: false
+
+  output_schema:
+    type: dict
+    description: "Schema defining expected output structure"
+    example:
+      plan:
+        type: Plan
+        description: "The generated plan"
+
+  # Prompt templates
+  system_prompt:
+    type: str
+    description: "System prompt template with variable placeholders"
+    required: true
+    value: |+
+      <Some system prompt with {variable_placeholders}>
+
+
+  # Resource requirements
+  resources:
+    type: dict
+    description: "Resource requirements for this agent"
+    required: false
+    example:
+      max_tokens: 4096
+      timeout_seconds: 60
+
+  # Retry and error handling
+  retry:
+    type: dict
+    description: "Retry configuration for this agent"
+    required: false
+    example:
+      max_attempts: 3
+      backoff_seconds: 2

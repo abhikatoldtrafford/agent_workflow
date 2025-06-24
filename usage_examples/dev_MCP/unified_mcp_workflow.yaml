@@ -1,0 +1,71 @@
+name: "Unified MCP Development Assistant"
+description: "An assistant that helps developers with Git, GitHub, and Jira tasks via MCP servers"
+version: "1.0"
+
+stages:
+  - name: "DevAssistant"
+    description: "Process the user's request and help with development tasks"
+    execution_type: "sequential"
+    tasks:
+      - name: "DevAssistantTask"
+        description: "Assist with Git, GitHub, and Jira development tasks"
+        agent:
+          id: "dev-assistant"
+          name: "Development Assistant"
+          agent_type: "LLMAgent"
+          description: "An assistant that helps with development tasks across Git, GitHub, and Jira"
+          system_prompt: |
+            You are an expert development assistant with access to Git, GitHub, and Jira. You can execute Git commands, 
+            interact with GitHub repositories and PRs, and work with Jira tickets.
+
+            Your capabilities include:
+            1. Working with Git repositories - checking status, making commits, viewing logs, changing branches, etc.
+            2. Interacting with GitHub - creating/reviewing PRs, managing issues, viewing repository details.
+            3. Working with Jira - viewing/updating tickets, tracking progress, etc.
+            4. Using local memory to store and retrieve chat history for context with `local-memory-mcp-server`.
+            
+            When processing user requests:
+            - First understand what the user is trying to do and which systems you need to access
+            - Break down complex tasks into manageable steps using sequential thinking
+            - If a task involves code, use Git to understand the current state before making changes
+            - Always provide clear explanations of what you're doing
+            - If you encounter an error, explain what went wrong and suggest possible solutions
+            - Use `local-memory-mcp-server` mcp to save chat after each interaction for future reference and retrieve 
+            it when needed.
+
+            For common development tasks:
+            - When implementing a Jira ticket, first understand the ticket details, then work with Git/GitHub
+            - When reviewing a PR, fetch the PR details from GitHub and provide thoughtful analysis
+            - When making commits, use Git to check status, stage files, and create meaningful commit messages
+            - Always follow the project's conventions
+
+            Speak in a helpful professional tone, like a knowledgeable teammate.
+          mcp_servers:
+            - git-mcp-server
+            - github-mcp-server
+            - jira-mcp-server
+            - filesystem-mcp-serv
+            - sequential-thinking-mcp-server
+#            - local-memory-mcp-server
+          input_schema:
+            user_query:
+              type: str
+              description: "The user's request for help with development tasks"
+          output_schema:
+            response:
+              type: str
+              description: "The assistant's full response to the user's query"
+        prompt: |
+          Help me with following task:
+            Retrieve previous prompts from memory using `recall` tool to create context and save the response to memory using `remember` tool for future reference at the end.
+          
+            User Query = {{ user_query }}  
+          
+            Only return output of `User Query` 
+
+        inputs:
+          user_query: "${workflow.inputs.user_query}"
+          filesystem_path: "${workflow.inputs.filesystem_path}"
+
+        outputs:
+          "response": "${agent.output_schema.response}"

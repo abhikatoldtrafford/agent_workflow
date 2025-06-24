@@ -1,0 +1,116 @@
+# workflow.yaml - Define orchestration of multiple AI agents
+
+# Workflow definition
+Workflow:
+  name:
+    type: str
+    description: "Name of the workflow"
+  description:
+    type: str
+    description: "Description of what this workflow accomplishes"
+  version:
+    type: str
+    description: "Version of the workflow"
+
+  # Workflow stages contain either tasks or subworkflows
+  stages:
+    type: list
+    item_type: WorkflowStage
+    description: "Sequential stages of the workflow"
+
+# Individual workflow stage definition
+WorkflowStage:
+  name:
+    type: str
+    description: "Name of this workflow stage"
+  description:
+    type: str
+    description: "Description of what this stage accomplishes"
+  execution_type:
+    type: str
+    description: "How the tasks in this stage should be executed"
+    enum: ["sequential", "parallel", "Handoff"]
+  tasks:
+    type: list
+    item_type: WorkflowTask
+    description: "List of tasks to be executed in this stage"
+
+  # Optional condition for stage execution
+  condition:
+    type: str
+    description: "Optional expression to determine if stage should be executed"
+    required: false
+
+  # Optional timeout for the entire stage
+  timeout:
+    type: int
+    description: "Maximum time in seconds this stage can run before timing out"
+    required: false
+
+# Individual task definition
+WorkflowTask:
+  name:
+    type: str
+    description: "Name of this task"
+  description:
+    type: str
+    description: "Description of what this task accomplishes"
+
+  # Agent configuration - either reference or inline
+  agent:
+    type: AgentConfig
+    description: "Configuration for the agent executing this task"
+    
+  # Task-specific prompt template
+  prompt:
+    type: str
+    description: "Prompt template with variable placeholders that will be sent to the agent"
+    required: true
+
+  # Input/output mappings
+  inputs:
+    type: dict
+    description: "Mapping of input parameters for this task, can use expressions like ${agent.input_schema.field_name} as keys"
+    required: false
+    example:
+      input_param: "${workflow.inputs.param_value}"  # Simple workflow input
+      "${agent.input_schema.param}": "${workflow.inputs.value}"  # Dynamic parameter name from agent schema
+
+  outputs:
+    type: dict
+    description: "Mapping of workflow output keys to agent schema fields"
+    required: false
+    example:
+      output_field: "${agent.output_schema.schema_field}"  # Map workflow output to agent schema field
+
+  # Optional condition for task execution
+  condition:
+    type: str
+    description: "Optional expression to determine if task should be executed"
+    required: false
+
+  # Optional timeout for this specific task
+  timeout:
+    type: int
+    description: "Maximum time in seconds this task can run before timing out"
+    required: false
+
+# Agent configuration
+AgentConfig:
+  # Either reference an existing agent or define inline
+  ref:
+    type: str
+    description: "Reference to a pre-defined agent (file path or ID)"
+    required: false
+
+  # For inline agent definition
+  agent_type:
+    type: str
+    description: "Type of Agent being described"
+    required: false
+
+  # Agent-specific parameters (extends base agent definition)
+  parameters:
+    type: dict
+    description: "Override parameters for the referenced agent"
+    required: false

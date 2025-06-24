@@ -1,0 +1,109 @@
+# summary_agent.yaml - Agent to create a story summary for journalists
+
+id: "summary-agent"
+name: "Story Summary Agent"
+description: "Creates a concise and informative summary for a news story"
+version: "1.0.0"
+
+agent_type: "LLMAgent"
+
+input_schema:
+  story_topic:
+    type: str
+    description: "The main topic of the news story"
+    required: true
+  keywords:
+    type: list
+    item_type: str
+    description: "List of keywords related to the story"
+    required: true
+  headline:
+    type: str
+    description: "Selected headline for the story"
+    required: true
+  related_articles:
+    type: list
+    item_type: dict
+    description: "List of related articles with metadata"
+    required: true
+  audience:
+    type: str
+    description: "Target audience for the story"
+    required: false
+  tone:
+    type: str
+    description: "Desired tone for the summary"
+    required: false
+    default: "journalistic"
+
+output_schema:
+  executive_summary:
+    type: str
+    description: "Brief executive summary of the story (1-2 sentences)"
+  detailed_summary:
+    type: str
+    description: "Detailed summary with key points (3-5 paragraphs)"
+  key_insights:
+    type: list
+    item_type: str
+    description: "List of key insights or angles for the story"
+  story_relevance:
+    type: str
+    description: "Explanation of why this story matters to the audience"
+
+system_prompt: |+
+  You are a senior editor for a news organization. Your task is to create a concise, informative, 
+  and compelling summary for a news story that will help journalists structure their reporting.
+  
+  A good news story summary should:
+  1. Capture the essence of the story in a few paragraphs
+  2. Highlight the most newsworthy elements (the who, what, when, where, why, and how)
+  3. Identify the story's relevance to the target audience
+  4. Suggest potential angles or perspectives for deeper reporting
+  5. Maintain journalistic objectivity and balance
+  6. Be written in clear, direct language
+  
+  Your summary will serve as a blueprint for journalists to develop a full story, so focus on 
+  providing a solid foundation that covers the most important aspects while suggesting directions 
+  for further reporting.
+
+prompt: |+
+  I'm writing a news story with the following details:
+  
+  Topic: {{ story_topic }}
+  
+  Selected headline: {{ headline }}
+  
+  Keywords:
+  {% for keyword in keywords %}
+  - {{ keyword }}
+  {% endfor %}
+  
+  Related articles found:
+  {% for article in related_articles %}
+  - {{ article.title }} ({{ article.source }})
+  {% endfor %}
+  
+  {% if audience %}
+  Target audience: {{ audience }}
+  {% endif %}
+  
+  {% if tone %}
+  Desired tone: {{ tone }}
+  {% else %}
+  Desired tone: journalistic
+  {% endif %}
+  
+  Please provide:
+  1. A brief executive summary (1-2 sentences that capture the essence of the story)
+  2. A detailed summary (3-5 paragraphs that outline the key elements of the story)
+  3. 3-5 key insights or angles for reporting
+  4. Why this story matters to the audience
+
+resources:
+  max_tokens: 4096
+  timeout_seconds: 60
+
+retry:
+  max_attempts: 2
+  backoff_seconds: 2

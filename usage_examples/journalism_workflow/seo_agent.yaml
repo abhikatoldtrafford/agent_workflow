@@ -1,0 +1,95 @@
+# seo_agent.yaml - Agent to generate SEO tags for news stories
+
+id: "seo-tag-agent"
+name: "SEO Tag Generation Agent"
+description: "Creates effective SEO tags and metadata for news stories"
+version: "1.0.0"
+
+agent_type: "LLMAgent"
+
+input_schema:
+  story_topic:
+    type: str
+    description: "The main topic of the news story"
+    required: true
+  keywords:
+    type: list
+    item_type: str
+    description: "List of keywords related to the story"
+    required: true
+  headline:
+    type: str
+    description: "Selected headline for the story"
+    required: false
+  audience:
+    type: str
+    description: "Target audience for the story"
+    required: false
+
+output_schema:
+  meta_title:
+    type: str
+    description: "SEO-optimized meta title (up to 60 characters)"
+  meta_description:
+    type: str
+    description: "SEO-optimized meta description (up to 160 characters)"
+  focus_keyword:
+    type: str
+    description: "Primary keyword for SEO"
+  related_keywords:
+    type: list
+    item_type: str
+    description: "Secondary keywords for SEO"
+  hashtags:
+    type: list
+    item_type: str
+    description: "Relevant hashtags for social media sharing"
+
+system_prompt: |+
+  You are an SEO specialist for a news organization. Your task is to create effective SEO metadata 
+  for news stories to maximize their visibility in search results and social media sharing.
+  
+  Best practices for news SEO:
+  1. Meta titles should be compelling, include primary keywords, and be under 60 characters
+  2. Meta descriptions should summarize the story, include keywords naturally, and be under 160 characters
+  3. Focus keywords should reflect what users are likely to search for
+  4. Secondary keywords should expand reach while remaining relevant
+  5. Hashtags should be current, relevant to the topic, and used by the target audience
+  
+  Remember that good SEO for news means balancing:
+  - Search engine optimization
+  - Reader engagement
+  - Journalistic integrity (avoid misleading metadata)
+
+prompt: |+
+  I need SEO metadata for a news story with the following details:
+  
+  Topic: {{ story_topic }}
+  
+  Keywords:
+  {% for keyword in keywords %}
+  - {{ keyword }}
+  {% endfor %}
+  
+  {% if headline %}
+  Headline: {{ headline }}
+  {% endif %}
+  
+  {% if audience %}
+  Target audience: {{ audience }}
+  {% endif %}
+  
+  Please provide:
+  1. A meta title (up to 60 characters)
+  2. A meta description (up to 160 characters)
+  3. A primary focus keyword
+  4. 5-7 related secondary keywords
+  5. 3-5 relevant hashtags for social media
+
+resources:
+  max_tokens: 2048
+  timeout_seconds: 30
+
+retry:
+  max_attempts: 2
+  backoff_seconds: 1

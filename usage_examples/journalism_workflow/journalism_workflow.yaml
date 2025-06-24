@@ -1,0 +1,125 @@
+# journalism_workflow.yaml - Workflow for journalists to build raw material for stories
+
+name: "Journalism Story Preparation"
+description: "Build raw material for a news story including images, headlines, SEO tags, related articles, and a summary"
+version: "1.0.0"
+
+stages:
+  # Stage 1: Parallel research for images and related articles
+  - name: "research"
+    description: "Find relevant images and articles"
+    execution_type: "sequential"
+    tasks:
+      - name: "find_images"
+        description: "Search for relevant images for the story"
+        agent:
+          id: "image-search-agent"
+          name: "Image Search Agent"
+          ref: "image_search_agent.yaml"
+        inputs:
+          story_topic: "${workflow.inputs.story_topic}"
+          keywords: "${workflow.inputs.keywords}"
+          image_count: "${workflow.inputs.image_count}"
+        outputs:
+          image_results: "${agent.output_schema.image_results}"
+          search_terms: "${agent.output_schema.search_terms}"
+
+      - name: "find_related_articles"
+        description: "Search RSS feeds for related articles"
+        agent:
+          id: "related-articles-agent"
+          name: "Related Articles Agent"
+          ref: "related_articles_agent.yaml"
+        inputs:
+          story_topic: "${workflow.inputs.story_topic}"
+          keywords: "${workflow.inputs.keywords}"
+          rss_feeds: "${workflow.inputs.rss_feeds}"
+          article_count: "${workflow.inputs.article_count}"
+        outputs:
+          related_articles: "${agent.output_schema.related_articles}"
+          search_terms: "${agent.output_schema.search_terms}"
+
+  # Stage 2: Create headline options
+  - name: "headline"
+    description: "Create compelling headline options"
+    execution_type: "sequential"
+    tasks:
+      - name: "generate_headlines"
+        description: "Generate compelling headline options"
+        agent:
+          id: "headline-agent"
+          name: "Headline Creation Agent"
+          ref: "headline_agent.yaml"
+        inputs:
+          story_topic: "${workflow.inputs.story_topic}"
+          keywords: "${workflow.inputs.keywords}"
+          audience: "${workflow.inputs.audience}"
+          tone: "${workflow.inputs.tone}"
+        outputs:
+          headlines: "${agent.output_schema.headlines}"
+          rationale: "${agent.output_schema.rationale}"
+
+  # Stage 3: Create SEO tags based on selected headline
+  - name: "seo"
+    description: "Generate SEO tags and metadata"
+    execution_type: "sequential"
+    tasks:
+      - name: "generate_seo_tags"
+        description: "Generate SEO tags for the story"
+        agent:
+          id: "seo-tag-agent"
+          name: "SEO Tag Generation Agent"
+          ref: "seo_agent.yaml"
+        inputs:
+          story_topic: "${workflow.inputs.story_topic}"
+          keywords: "${workflow.inputs.keywords}"
+          headline: "${stages.headline.tasks.generate_headlines.outputs.headlines[0]}"
+          audience: "${workflow.inputs.audience}"
+        outputs:
+          meta_title: "${agent.output_schema.meta_title}"
+          meta_description: "${agent.output_schema.meta_description}"
+          focus_keyword: "${agent.output_schema.focus_keyword}"
+          related_keywords: "${agent.output_schema.related_keywords}"
+          hashtags: "${agent.output_schema.hashtags}"
+
+  # Stage 4: Create a story summary using all previous outputs
+  - name: "summary"
+    description: "Create a comprehensive story summary"
+    execution_type: "sequential"
+    tasks:
+      - name: "generate_summary"
+        description: "Generate a comprehensive story summary"
+        agent:
+          id: "summary-agent"
+          name: "Story Summary Generation Agent"
+          ref: "summary_agent.yaml"
+        inputs:
+          story_topic: "${workflow.inputs.story_topic}"
+          keywords: "${workflow.inputs.keywords}"
+          headline: "${stages.headline.tasks.generate_headlines.outputs.headlines[0]}"
+          related_articles: "${stages.research.tasks.find_related_articles.outputs.related_articles}"
+          audience: "${workflow.inputs.audience}"
+          tone: "${workflow.inputs.tone}"
+        outputs:
+          executive_summary: "${agent.output_schema.executive_summary}"
+          detailed_summary: "${agent.output_schema.detailed_summary}"
+          key_insights: "${agent.output_schema.key_insights}"
+          story_relevance: "${agent.output_schema.story_relevance}"
+
+# Define the workflow outputs
+outputs:
+  story_package:
+    image_results: "${stages.research.tasks.find_images.outputs.image_results}"
+    related_articles: "${stages.research.tasks.find_related_articles.outputs.related_articles}"
+    headlines: "${stages.headline.tasks.generate_headlines.outputs.headlines}"
+    seo_tags:
+      meta_title: "${stages.seo.tasks.generate_seo_tags.outputs.meta_title}"
+      meta_description: "${stages.seo.tasks.generate_seo_tags.outputs.meta_description}"
+      focus_keyword: "${stages.seo.tasks.generate_seo_tags.outputs.focus_keyword}"
+      related_keywords: "${stages.seo.tasks.generate_seo_tags.outputs.related_keywords}"
+      hashtags: "${stages.seo.tasks.generate_seo_tags.outputs.hashtags}"
+    summary:
+      executive_summary: "${stages.summary.tasks.generate_summary.outputs.executive_summary}"
+      detailed_summary: "${stages.summary.tasks.generate_summary.outputs.detailed_summary}"
+      key_insights: "${stages.summary.tasks.generate_summary.outputs.key_insights}"
+      story_relevance: "${stages.summary.tasks.generate_summary.outputs.story_relevance}"

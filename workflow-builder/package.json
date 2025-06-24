@@ -1,0 +1,41 @@
+{
+  "name": "workflow-builder",
+  "version": "1.0.0",
+  "description": "Drag-and-drop workflow builder for generating YAML workflow definitions",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
+  },
+  "keywords": [
+    "workflow",
+    "yaml",
+    "builder",
+    "reactflow",
+    "drag-and-drop"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.0",
+    "@mui/icons-material": "^7.0.1",
+    "@mui/material": "^7.0.1",
+    "@types/uuid": "^10.0.0",
+    "js-yaml": "^4.1.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "reactflow": "^11.11.4",
+    "uuid": "^11.1.0"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^22.14.0",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "typescript": "^5.8.3",
+    "vite": "^6.2.6"
+  }
+}

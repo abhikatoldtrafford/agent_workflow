@@ -1,0 +1,68 @@
+name: "Handoff Example Workflow"
+description: "Workflow demonstrating handoff"
+version: "1.0.0"
+
+stages:
+  - name: "QA Agent or Translate Handoff"
+    description: "Execute tools to answer the query"
+    execution_type: "handoff"
+    tasks:
+      - name: "Answer Question"
+        description: "Answer the user's question using the QA Agent"
+        prompt: |+
+          Answer the user's question to the best of your ability.
+          {{ user_query }}
+        agent:
+          id: "qa_agent"
+          name: "QA Agent"
+          agent_type: "LLMAgent"
+          tools: [] # No tools are used in this example
+          system_prompt: |+
+            You are a helpful assistant.
+            Always include a smile in your responses.
+          input_schema:
+            user_query:
+              type: str
+              description: "The user's query"
+              required: true         
+          output_schema:
+            response:
+              type: str
+              description: "The answer to the user's question."       
+        inputs:
+          user_query: "${workflow.inputs.user_query}"    
+        outputs:
+          "response": "${agent.output_schema.response}"
+
+      - name: "Translate user input"
+        description: "Translate the user's query from English to Hindi"
+        prompt: |+
+          Please translate the following text from English to Hindi:
+          
+          Original query: "{{ user_query }}"
+        agent:
+          id: "translation_agent"
+          name: "Translation Agent"
+          agent_type: "LLMAgent"
+          tools: [] # No tools are used in this example
+          system_prompt: |+
+            You are a helpful assistant that formats information in a user-friendly way.
+            Be succinct and focus on presenting the information in a helpful way.    
+            The target language will always be Hindi so make sure to translate the text accordingly.     
+          input_schema:
+            user_query:
+              type: str
+              description: "The user's original query"
+              required: true
+            tool_response:
+              type: str
+              description: "The response from tool execution"
+              required: true          
+          output_schema:
+            response:
+              type: str
+              description: "The final formatted response to the user"        
+        inputs:
+          user_query: "${workflow.inputs.user_query}"
+        outputs:
+          "response": "${agent.output_schema.response}"

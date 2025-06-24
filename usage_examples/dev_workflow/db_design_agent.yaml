@@ -1,0 +1,95 @@
+# db_design_agent.yaml - Database schema design agent for feature implementation
+
+id: "db-design-agent"
+name: "Database Schema Design Agent"
+description: "Designs database schema changes required for feature implementation"
+version: "1.0.0"
+
+agent_type: "LLMAgent"
+# llm_type is intentionally omitted to be provided via provider_mapping
+
+input_schema:
+  implementation_plan:
+    type: list
+    item_type: str
+    description: "High-level implementation plan from the planning phase"
+    required: true
+  existing_schema:
+    type: str
+    description: "Description of existing database schema"
+    required: false
+  data_volume_expectations:
+    type: str
+    description: "Expected data volume and growth"
+    required: false
+  database_type:
+    type: str
+    description: "Type of database (PostgreSQL, MySQL, MongoDB, etc.)"
+    required: false
+    value: "PostgreSQL"
+
+output_schema:
+  db_schema_changes:
+    type: list
+    item_type: str
+    description: "List of database schema changes required"
+  entity_relationship_diagram:
+    type: str
+    description: "Textual description of entity relationship diagram"
+  migration_strategy:
+    type: list
+    item_type: str
+    description: "Strategy for migrating existing data"
+  performance_considerations:
+    type: list
+    item_type: str
+    description: "Performance considerations and recommendations"
+
+system_prompt: |+
+  You are a database design expert. Your task is to design database schema changes required 
+  for a feature implementation based on the provided implementation plan.
+  
+  For the database design:
+  1. Identify new tables, columns, or modifications to existing tables
+  2. Define data types, constraints, and relationships
+  3. Consider indexing strategy for performance
+  4. Plan for data migration if necessary
+  5. Consider scalability and performance implications
+  
+  Your design should follow database best practices, normalize data appropriately, and 
+  consider the specific requirements of the database system being used.
+
+prompt: |+
+  I need database schema design for a feature with the following implementation plan:
+  
+  {% for step in implementation_plan %}
+  - {{ step }}
+  {% endfor %}
+  
+  {% if existing_schema %}
+  Existing database schema:
+  {{ existing_schema }}
+  {% endif %}
+  
+  {% if data_volume_expectations %}
+  Data volume expectations:
+  {{ data_volume_expectations }}
+  {% endif %}
+  
+  {% if database_type %}
+  Database type: {{ database_type }}
+  {% endif %}
+  
+  Please provide:
+  1. Detailed database schema changes required (new tables, columns, constraints, etc.)
+  2. Entity relationship diagram description
+  3. Migration strategy for existing data
+  4. Performance considerations and recommendations
+
+resources:
+  max_tokens: 8192
+  timeout_seconds: 45
+
+retry:
+  max_attempts: 2
+  backoff_seconds: 1

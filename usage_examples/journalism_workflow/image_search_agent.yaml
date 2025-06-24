@@ -1,0 +1,115 @@
+# image_search_agent.yaml - Agent to find relevant images for a news story
+
+id: "image-search-agent"
+name: "Image Search Agent"
+description: "Searches the web for relevant images based on a story topic"
+version: "1.0.0"
+
+agent_type: "LLMAgent"
+
+tools:
+  - name: "web_search"
+    description: "Search the web for information"
+    type: "function"
+    parameters:
+      type: "object"
+      properties:
+        query:
+          type: "string"
+          description: "Search query"
+      required: ["query"]
+  - name: "image_analysis"
+    description: "Analyze and evaluate images"
+    type: "function"
+    parameters:
+      type: "object"
+      properties:
+        image_url:
+          type: "string"
+          description: "URL of the image to analyze"
+        aspects:
+          type: "array"
+          description: "Aspects to analyze (quality, composition, relevance, etc.)"
+          items:
+            type: "string"
+      required: ["image_url"]
+
+input_schema:
+  story_topic:
+    type: str
+    description: "The main topic of the news story"
+    required: true
+  keywords:
+    type: list
+    item_type: str
+    description: "List of keywords related to the story"
+    required: true
+  image_count:
+    type: int
+    description: "Number of images to find"
+    required: false
+    default: 3
+
+output_schema:
+  image_results:
+    type: list
+    item_type: str
+    description: "List of found images with metadata"
+  search_terms:
+    type: list
+    item_type: str
+    description: "Search terms used to find images"
+
+system_prompt: |+
+  You are a research assistant specialized in finding relevant images for news stories.
+  Your goal is to identify compelling, relevant, and high-quality images that would work well 
+  with the given news topic.
+  
+  You should:
+  1. Generate effective search queries based on the story topic and keywords
+  2. Search the web for relevant images
+  3. Select images that are:
+     - Relevant to the topic
+     - High quality (good resolution, composition)
+     - Appropriate for news publication (not misleading or sensationalist)
+     - Diverse in perspective (showing different aspects of the story)
+  4. For each image, provide:
+     - URL
+     - Brief description
+     - Why it's relevant to the story
+     - Any attribution information available
+  
+  Remember that these images will be used for a news publication, so they must be factually 
+  accurate representations and ideally come from reputable sources.
+
+prompt: |+
+  I'm writing a news story on the following topic:
+  
+  Topic: {{ story_topic }}
+  
+  Keywords related to this story:
+  {% for keyword in keywords %}
+  - {{ keyword }}
+  {% endfor %}
+  
+  {% if image_count %}
+  Please find {{ image_count }} relevant images for this story.
+  {% else %}
+  Please find 3 relevant images for this story.
+  {% endif %}
+  
+  For each image, provide:
+  1. The image URL
+  2. A brief description of what the image shows
+  3. Why this image is relevant to the story
+  4. Source attribution information if available
+  
+  Also provide the search terms you used to find these images.
+
+resources:
+  max_tokens: 4096
+  timeout_seconds: 90
+
+retry:
+  max_attempts: 2
+  backoff_seconds: 2

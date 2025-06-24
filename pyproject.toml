@@ -1,0 +1,106 @@
+[project]
+name = "agent-workflow"
+version = "0.1.0"
+description = "A flexible, scalable framework for orchestrating multi-agent LLM workflows through YAML configurations"
+authors = [
+    {name = "Manish Sanwal", email = "msanwal@newscorp.com"}
+]
+readme = "README.md"
+requires-python = "<4.0,>=3.10"
+license = {text = "MIT"}
+classifiers = [
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Operating System :: OS Independent",
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Topic :: Software Development :: Libraries",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    "pydantic<3.0.0,>=2.10.6",
+    "jinja2<4.0.0,>=3.1.6",
+    "logger<2.0,>=1.4",
+    "pyyaml<7.0.0,>=6.0.2",
+    "boto3<2.0.0,>=1.37.14",
+    "langfuse<3.0.0,>=2.60.0",
+    "openai-agents>=0.0.14",
+    "google-generativeai<0.9.0,>=0.8.4",
+    "ruff>=0.11.8",
+    "setuptools>=80.4.0",
+]
+
+[tool.poetry.dependencies]
+python = ">=3.10,<4.0"
+pydantic = ">=2.10.6,<3.0.0"
+jinja2 = ">=3.1.6,<4.0.0"
+logger = ">=1.4,<2.0"
+pyyaml = ">=6.0.2,<7.0.0"
+boto3 = ">=1.37.14,<2.0.0"
+langfuse = ">=2.60.0,<3.0.0"
+openai-agents = ">=0.0.14"
+google-generativeai = ">=0.8.4,<0.9.0"
+ruff = ">=0.11.8"
+
+
+[tool.pdm.build]
+includes = ["agent_workflow", "expressions", "parsers", "providers", "workflow_engine", "yaml"]
+package-dir = "."
+[project.urls]
+"Homepage" = "https://github.com/newscorp-ghfb/Agent_workflow"
+"repository" = "https://github.com/newscorp-ghfb/Agent_workflow"
+"Bug Tracker" = "https://github.com/newscorp-ghfb/Agent_workflow/issues"
+
+[build-system]
+requires = ["pdm-backend"]
+build-backend = "pdm.backend"
+
+[tool.poetry]
+packages = [
+    { include = "agent_workflow" },
+    { include = "expressions" },
+    { include = "parsers" },
+    { include = "providers" },
+    { include = "workflow_engine" },
+    { include = "yaml" },
+]
+
+[tool.setuptools.packages.find]
+include = ["agent_workflow*", "expressions*", "parsers*", "providers*", "workflow_engine*", "yaml*"]
+
+[tool.pytest]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_functions = "test_*"
+asyncio_mode = "auto"
+
+[tool.ruff]
+target-version = "py310"
+line-length = 88
+exclude = [
+    ".git",
+    ".ruff_cache",
+    ".venv",
+    "venv",
+    "__pycache__",
+    "build",
+    "dist",
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
+
+[dependency-groups]
+dev = [
+    "pytest<9.0.0,>=8.0.0",
+    "pytest-asyncio<0.24.0,>=0.23.5",
+    "black<25.0.0,>=24.3.0",
+    "isort<6.0.0,>=5.13.2",
+    "mypy<2.0.0,>=1.15.0",
+    "types-PyYAML<7.0.0,>=6.0.0",
+]
+testing = [
+    "mcp[cli]>=1.7.1",
+]
