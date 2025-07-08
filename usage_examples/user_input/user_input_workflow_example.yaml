@@ -1,0 +1,147 @@
+
+
+# User Input Workflow Example
+name: "User Input Demo Workflow"
+description: "Workflow demonstrating user input capabilities"
+version: "1.0.0"
+
+# Enable user input for the workflow
+user_input:
+  enabled: true
+  prompt_template: "Review output from {agent_name}. Make any necessary changes:"
+  timeout_seconds: 300  # 5 minute timeout
+
+stages:
+  - name: "Content Analysis"
+    description: "Analyze content with multiple specialized agents"
+    execution_type: "sequential"
+    tasks:
+      - name: "Summarizer"
+        description: "Summarize the input content"
+        agent:
+          id: "summarizer"
+          name: "Content Summarizer"
+          agent_type: "LLMAgent"
+          system_prompt: |
+            You are an expert at summarizing content into concise, clear summaries.
+            Create summaries that capture the essential points while remaining brief.
+          prompt: |
+            Please summarize the following content in 2-3 sentences:
+            
+            {{ user_query }}
+          
+          input_schema:
+            user_query:
+              type: str
+              description: "The content to summarize"
+              required: true
+          
+          output_schema:
+            summary:
+              type: str
+              description: "A concise summary of the content"
+            title:
+              type: str
+              description: "A possible title for the content"
+            seo_tags:
+              type: list
+              description: "SEO tags relevant to the content"
+
+        inputs:
+          user_query: "${workflow.inputs.user_query}"
+        
+        outputs:
+          summary: "${agent.output}"
+          title: "${agent.output.title}"
+          seo_tags: "${agent.output.seo_tags}"
+
+      - name: "KeyPoints"
+        description: "Extract key points from the content"
+        agent:
+          id: "key-points"
+          name: "Key Points Extractor"
+          agent_type: "LLMAgent"
+          system_prompt: |
+            You are an expert at identifying the most important points from content.
+            Extract 3-5 key points that represent the core ideas or arguments.
+          prompt: |
+            Extract 3-5 key points from the following content and summary:
+            
+            Original Content:
+            {{ user_query }}
+            
+            Summary:
+            {{ summary }}
+          
+          input_schema:
+            user_query:
+              type: str
+              description: "The original content"
+              required: true
+            summary:
+              type: str
+              description: "A summary of the content"
+              required: true
+            title:
+              type: str
+              description: "A possible title for the content"
+              required: true
+          
+          output_schema:
+            key_points:
+              type: str
+              description: "3-5 key points extracted from the content"
+        
+        inputs:
+          user_query: "${workflow.inputs.user_query}"
+          summary: "${stages.[Content Analysis].tasks.[Summarizer].outputs.summary}"
+          title: "${stages.[Content Analysis].tasks.[Summarizer].outputs.title}"
+        
+        outputs:
+          "key_points": "${agent.output}"
+
+  - name: "Response Generation"
+    description: "Create a final response combining the analysis"
+    execution_type: "sequential"
+    tasks:
+      - name: "FinalResponse"
+        description: "Generate the final response combining all analyses"
+        agent:
+          id: "response-generator"
+          name: "Response Generator"
+          agent_type: "LLMAgent"
+          system_prompt: |
+            You are an expert at synthesizing information from multiple sources.
+            Create a comprehensive, well-structured response that integrates different analyses.
+          prompt: |
+            Create a comprehensive response that combines the summary and key points:
+            
+            Summary:
+            {{ summary }}
+            
+            Key Points:
+            {{ key_points }}
+            
+            Your response should be well-structured with clear sections for the summary and key points.
+          
+          input_schema:
+            summary:
+              type: str
+              description: "The content summary"
+              required: true
+            key_points:
+              type: str
+              description: "Key points extracted from the content"
+              required: true
+          
+          output_schema:
+            final_response:
+              type: str
+              description: "The final comprehensive response"
+        
+        inputs:
+          summary: "${stages.[Content Analysis].tasks.[Summarizer].outputs.summary}"
+          key_points: "${stages.[Content Analysis].tasks.[KeyPoints].outputs.key_points}"
+        
+        outputs:
+          "final_response": "${agent.output}"

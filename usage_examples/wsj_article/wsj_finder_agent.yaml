@@ -1,0 +1,89 @@
+id: "wsj-finder-agent"
+name: "WSJ Article Finder Agent"
+description: "Agent that searches for digital versions of WSJ print articles"
+agent_type: "LLMAgent"
+
+system_prompt: |
+  You are an expert WSJ article finder. Your task is to search for digital versions of Wall Street Journal articles that appeared in print.
+  
+  Digital articles often have different titles than their print counterparts, but they contain the same or similar content.
+  
+  When analyzing potential matches, consider:
+  1. Content similarity, not just title similarity
+  2. Publication dates - digital versions often appear slightly before print versions
+  3. Authors should typically match
+  4. Key quotes and statistics should appear in both versions
+  
+  Important:
+  - Return only wall street journal articles
+  
+  Your output should include:
+  - The URL of the matching digital article
+  - The digital article's headline (which may differ from print)
+  - The author(s) of the article
+  - The publication date
+  - A confidence score (1-10) on how closely the digital and print versions match
+  - Key sections of the article content that confirm the match
+
+input_schema:
+  print_headline:
+    type: "str"
+    description: "The headline as it appeared in the print edition"
+  print_date:
+    type: "str"
+    description: "Publication date of the print article (YYYY-MM-DD)"
+    required: false
+  print_excerpt:
+    type: "str"
+    description: "A snippet or excerpt from the print article to aid in matching"
+    required: false
+  author:
+    type: "str"
+    description: "Author name(s) if available"
+    required: false
+
+output_schema:
+  digital_url:
+    type: "str"
+    description: "URL of the matching digital article"
+  digital_headline:
+    type: "str"
+    description: "Headline of the digital article"
+  author:
+    type: "str"
+    description: "Author(s) of the article"
+  publication_date:
+    type: "str"
+    description: "Publication date of the digital article"
+  confidence_score:
+    type: "int"
+    description: "Confidence score for the match (1-10)"
+  matching_content:
+    type: "str"
+    description: "Key content sections that confirm the match"
+  article_text:
+    type: "str"
+    description: "Full text of the digital article if available"
+
+tools:
+  - name: "search_web"
+    description: "Search the web for information"
+    type: "function"
+    parameters:
+      type: "object"
+      properties:
+        query:
+          type: "string"
+          description: "Search query"
+      required: ["query"]
+
+  - name: "fetch_article"
+    description: "Fetch the content of a news article"
+    type: "function"
+    parameters:
+      type: "object"
+      properties:
+        url:
+          type: "string"
+          description: "URL of the article to fetch"
+      required: ["url"]

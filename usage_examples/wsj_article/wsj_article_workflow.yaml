@@ -1,0 +1,27 @@
+name: "wsj-article-finder"
+description: "Finds digital versions of WSJ print articles"
+version: "1.0.0"
+
+stages:
+  - name: "article-search"
+    description: "Search for digital versions of WSJ print articles"
+    execution_type: "sequential"
+    tasks:
+      - name: "Find Digital Article"
+        agent:
+          id: "wsj-finder-agent"
+          name: "WSJ Article Finder Agent"
+          ref: "wsj_finder_agent.yaml"
+        inputs:
+          print_headline: "${workflow.inputs.print_headline}"
+          print_date: "${workflow.inputs.print_date}"
+          print_excerpt: "${workflow.inputs.print_excerpt}"
+          author: "${workflow.inputs.author}"
+        outputs:
+          digital_url: "${agent.output_schema.digital_url}"
+          digital_headline: "${agent.output_schema.digital_headline}"
+          author: "${agent.output_schema.author}"
+          publication_date: "${agent.output_schema.publication_date}"
+          confidence_score: "${agent.output_schema.confidence_score}"
+          matching_content: "${agent.output_schema.matching_content}"
+          article_text: "${agent.output_schema.article_text}"

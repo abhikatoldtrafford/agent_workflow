@@ -1,0 +1,125 @@
+# tool_workflow_example.yaml - Example workflow that uses tools
+
+name: "Tool-Enabled Assistant Workflow"
+description: "Workflow demonstrating native tool usage"
+version: "1.0.0"
+
+stages:
+  - name: "Tool Execution"
+    description: "Execute tools to answer the query"
+    execution_type: "sequential"
+    tasks:
+      - name: "Execute Tools"
+        description: "Use tools to gather information and answer the query"
+        prompt: |+
+
+          {{ user_query }}
+        agent:
+          id: "tool-agent"
+          name: "Tool Calling Agent"
+          agent_type: "LLMAgent"
+          # llm_type is intentionally omitted to be provided via provider_mapping
+          tools:
+            - name: "calculate"
+              description: "Perform mathematical calculations"
+              type: "function"
+              parameters:
+                type: "object"
+                properties:
+                  expression:
+                    type: "string"
+                    description: "Mathematical expression to evaluate"
+                required: ["expression"]
+            - name: "get_weather"
+              description: "Get weather information for a location"
+              type: "function"
+              parameters:
+                type: "object"
+                properties:
+                  location:
+                    type: "string"
+                    description: "Location to get weather for"
+                  units:
+                    type: "string"
+                    description: "Units for temperature (celsius or fahrenheit)"
+                    enum: ["celsius", "fahrenheit"]
+                required: ["location"]
+          system_prompt: |+
+            You are a helpful assistant with access to tools that can help answer user queries.
+            You have access to these specific tools:
+
+            1. calculate - Use this for ANY mathematical calculations including arithmetic, conversions, etc.
+            2. get_weather - Use this to get weather information for a location
+
+            IMPORTANT INSTRUCTIONS:
+            - Only use the tools listed above
+            - Do not perform calculations yourself - rely on the calculate tool
+            - Do not make up weather information - use the get_weather tool
+
+          input_schema:
+            user_query:
+              type: str
+              description: "The user's query"
+              required: true
+
+          output_schema:
+            response:
+              type: str
+              description: "The final response to the user with tool information"
+
+        inputs:
+          user_query: "${workflow.inputs.user_query}"
+
+        outputs:
+          "response": "${agent.output_schema.response}"
+
+  - name: "Response Generation"
+    description: "Format the final response"
+    execution_type: "sequential"
+    tasks:
+      - name: "Generate Final Response"
+        description: "Format the response for display to the user"
+        prompt: |+
+          Please format this response for display to the user:
+          
+          Original query: "{{ user_query }}"
+          
+          Tool execution results:
+          {{ tool_response }}
+        agent:
+          id: "response-agent"
+          name: "Response Formatting Agent"
+          agent_type: "LLMAgent"
+          # llm_type is intentionally omitted to be provided via provider_mapping
+          tools: []  # Empty list since no tools are needed for response generation
+          system_prompt: |+
+            You are a helpful assistant that formats information in a user-friendly way.
+            
+            Format the response in a clear, structured way that shows:
+            1. The original query
+            2. How tools were used to answer the query (specifically mentioning tool names)
+            3. The final answers to both parts of the query
+            
+            Be succinct and focus on presenting the information in a helpful way.
+          
+          input_schema:
+            user_query:
+              type: str
+              description: "The user's original query"
+              required: true
+            tool_response:
+              type: str
+              description: "The response from tool execution"
+              required: true
+          
+          output_schema:
+            response:
+              type: str
+              description: "The final formatted response to the user"
+        
+        inputs:
+          user_query: "${workflow.inputs.user_query}"
+          tool_response: "${stages.[Tool Execution].tasks.[Execute Tools].outputs.response}"
+        
+        outputs:
+          "response": "${agent.output_schema.response}"

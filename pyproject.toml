@@ -85,6 +85,7 @@ exclude = [
     "__pycache__",
     "build",
     "dist",
+    ".github",
 ]
 
 [tool.ruff.format]
