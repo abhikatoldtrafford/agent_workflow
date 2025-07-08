@@ -458,7 +458,7 @@ class LLMAgent(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     version: Optional[str] = None
-    agent_type: str = "LLMAgent"
+    agent_type: Optional[str] = "LLMAgent"
     tools: Optional[List[Tool]] = None
     mcp_servers: Optional[List[str]] = None
     input_schema: Optional[Dict[str, Any]] = None

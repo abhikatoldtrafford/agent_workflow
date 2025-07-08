@@ -174,12 +174,12 @@ def _create_tool(ctx: EngineContext, tool_def: Dict[str, Any]) -> Any:
         return None
     registry = ctx.tool_registry
     tool = registry.get_tool(name) if registry else None
-    if isinstance(tool, FunctionTool) and tool.function:
+    if isinstance(tool, FunctionTool) and tool.function is not None:
         # update the name of method as user would be referring it with the name
         import functools
         original_func = tool.function
         @functools.wraps(original_func)
-        async def wrapped(*args, **kwargs):
+        async def wrapped(*args, **kwargs)-> Any:
             import inspect
             result = original_func(*args, **kwargs)
             if inspect.isawaitable(result):
@@ -487,8 +487,6 @@ async def execute_stage_parallel(
     for tres in outs:
         key = tres.task_name
         val = tres.result
-        if not isinstance(val, dict):
-            val = {"result": val}
         safe = _safe_serialize(val)
         results[key] = safe
         ctx.response_store.add(name, key, TaskExecutionResult(key, safe, completed=True))

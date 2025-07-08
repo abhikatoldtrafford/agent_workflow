@@ -16,6 +16,8 @@ from agent_workflow.workflow_engine.models import (
     WorkflowInput,
     WorkflowStage,
     WorkflowTask,
+    TaskExecutionResult,
+    StageExecutionResult
 )
 
 logger = logging.getLogger("workflow-engine.execution_engine")
@@ -74,7 +76,7 @@ class ExecutionEngine(ABC):
         inputs: WorkflowInput,
         progress_callback: Optional[ProgressCallback] = None,
         kwargs: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+    ) -> TaskExecutionResult:
         """
         Execute a single task with the provided configuration and inputs.
 
@@ -96,7 +98,7 @@ class ExecutionEngine(ABC):
         inputs: WorkflowInput,
         progress_callback: Optional[ProgressCallback] = None,
         kwargs: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+    ) -> StageExecutionResult:
         """
         Execute a workflow stage with the provided configuration and inputs.
 
