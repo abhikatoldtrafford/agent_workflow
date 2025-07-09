@@ -23,7 +23,7 @@ from agent_workflow.parsers import YAMLParser
 from agent_workflow.workflow_engine import OpenAIProviderConfig, ProviderConfiguration, ProviderType
 from agent_workflow.providers.callbacks import ConsoleProgressCallback
 # Import Langfuse provider from the correct location
-from usage_examples.tool_usage.langfuse_observability import LangfuseLLMObservabilityProvider
+from agent_workflow.providers.llm_observability import LangfuseLLMObservabilityProvider
 # Import TraceStatus for error handling
 from agent_workflow.providers.llm_observability import TraceStatus
 from agent_workflow.providers.tools import ToolRegistry, tool, register_tool, Tool, global_tool_registry
