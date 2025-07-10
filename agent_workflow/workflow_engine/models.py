@@ -27,6 +27,8 @@ WorkflowSource = Union[WorkflowSourceFile, WorkflowSourceYAML, WorkflowSourceDic
 # Type variable for models
 T = TypeVar("T", bound=BaseModel)
 
+logger = logging.getLogger("workflow-engine.models")
+
 
 @dataclass
 class ModelSettings:
@@ -218,6 +220,8 @@ class AgentConfig(BaseModel):
 
     # Prompt templates
     system_prompt: Optional[str] = None
+    user_prompt: Optional[str] = None  # KEPT for backward compatibility
+    prompt: Optional[str] = None  # NEW: Support agent-level prompt template
 
     # Resource requirements
     resources: Optional[Dict[str, Any]] = None
@@ -226,7 +230,7 @@ class AgentConfig(BaseModel):
     retry: Optional[Dict[str, Any]] = None
 
     @root_validator(skip_on_failure=True)
-    def validate_agent_config(cls, values: dict[str, "LLMAgent"]) -> dict[str, "LLMAgent"]:
+    def validate_agent_config(cls, values: dict[str, Any]) -> dict[str, Any]:
         """Ensure that either ref or agent_type is provided."""
         if not values.get("ref") and not values.get("agent_type"):
             raise ValueError("Either 'ref' or 'agent_type' must be provided")
@@ -285,17 +289,82 @@ class WorkflowTask(BaseModel):
     name: str
     description: Optional[str] = None
     agent: AgentConfig
-    prompt: str
+    prompt: Optional[str] = None  # Made optional for backward compatibility
     inputs: Optional[Dict[str, Any]] = None
     outputs: Optional[Dict[str, Any]] = None
     condition: Optional[str] = None
     timeout: Optional[int] = None
 
-    #     add an optional provider field of `BaseProviderConfig` type that'll be resolved at runtime
+    # add an optional provider field of `BaseProviderConfig` type that'll be resolved at runtime
     provider: Optional["BaseProviderConfig"] = None
     
     # Store the initialized agent instance
     initialized_agent: Optional[Any] = None
+
+    @model_validator(mode='before')
+    @classmethod
+    def migrate_prompts_before_validation(cls, data: Any) -> Any:
+        """
+        Migrate old prompt formats to new format BEFORE validation.
+        This handles all possible prompt locations.
+        """
+        if not isinstance(data, dict):
+            return data
+            
+        # If task already has a prompt, we're good
+        if data.get('prompt'):
+            return data
+            
+        # Check if agent exists
+        agent_data = data.get('agent')
+        if not agent_data:
+            return data
+            
+        # Handle dict form of agent
+        if isinstance(agent_data, dict):
+            # Priority order:
+            # 1. user_prompt (old test format)
+            # 2. prompt (agent definition format)
+            
+            if 'user_prompt' in agent_data and agent_data['user_prompt']:
+                data['prompt'] = agent_data['user_prompt']
+                logger.info(f"Migrated agent.user_prompt to task-level prompt for task: {data.get('name', 'unknown')}")
+            elif 'prompt' in agent_data and agent_data['prompt']:
+                # This handles agent definition files loaded via ref
+                data['prompt'] = agent_data['prompt']
+                logger.debug(f"Using agent.prompt as task-level prompt for task: {data.get('name', 'unknown')}")
+        
+        return data
+
+    @model_validator(mode='after')
+    def finalize_prompt(self) -> Self:
+        """
+        Final validation to ensure we have a prompt.
+        At this point, ref resolution should have happened.
+        """
+        # If we have a prompt, we're done
+        if self.prompt:
+            return self
+            
+        # Last resort: check the instantiated agent object
+        if hasattr(self.agent, 'user_prompt') and self.agent.user_prompt:
+            self.prompt = self.agent.user_prompt
+            logger.warning(f"Using fallback agent.user_prompt for task: {self.name}")
+        elif hasattr(self.agent, 'prompt') and self.agent.prompt:
+            self.prompt = self.agent.prompt
+            logger.debug(f"Using fallback agent.prompt for task: {self.name}")
+        
+        # Special case: if agent has ref but no prompt yet, it might be loaded later
+        if not self.prompt and self.agent.ref:
+            logger.debug(f"Task '{self.name}' has agent ref but no prompt yet - will be resolved during workflow loading")
+            # Don't fail here - the workflow manager will handle ref resolution
+            return self
+            
+        # If still no prompt and no ref, this is an error
+        if not self.prompt:
+            raise ValueError(f"Task '{self.name}' must have a prompt (at task level, in agent.prompt, or in agent.user_prompt)")
+            
+        return self
 
     def process_inputs(
         self, response_store: "ResponseStore", workflow_inputs: "WorkflowInput"
@@ -389,9 +458,6 @@ class WorkflowStage(BaseModel):
     tasks: List[WorkflowTask]
     condition: Optional[str] = None
     timeout: Optional[int] = None
-    #
-    # @model_validator(mode="after")
-    # def validate_tasks(self) -> Self:
 
     @model_validator(mode="before")
     @classmethod
@@ -462,7 +528,8 @@ class LLMAgent(BaseModel):
     input_schema: Optional[Dict[str, Any]] = None
     output_schema: Optional[Dict[str, Any]] = None
     system_prompt: Optional[str] = None
-    user_prompt: Optional[str] = None
+    user_prompt: Optional[str] = None  # KEPT for backward compatibility
+    prompt: Optional[str] = None  # NEW: Support agent definition format
     resources: Optional[Dict[str, Any]] = None
     retry: Optional[Dict[str, Any]] = None
 
@@ -598,7 +665,10 @@ class GeminiProviderConfig(BaseProviderConfig):
     model: str
     project_id: str
     location: str
-    base_url: str
+    base_url: Optional[str] = None
+    model_settings: Optional[ModelSettings] = None
+    # Gemini doesn't support JSON schema for tools
+    enforce_structured_output: bool = False
 
     @model_validator(mode="after")
     def set_api_key(self) -> Self:
