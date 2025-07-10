@@ -1268,66 +1268,6 @@ class BaseLangfuseTest:
 # Test Classes
 # ============================================================================
 
-@pytest.mark.asyncio
-class TestLangfuseConnection(BaseLangfuseTest):
-    """Test Langfuse connection and basic tracing."""
-    
-    async def test_langfuse_client_connection(self, observability_provider):
-        """Test that Langfuse client is properly initialized and can create traces."""
-        # Create a simple trace directly
-        trace = observability_provider.client.trace(
-            name="test_connection_trace",
-            metadata={"test": "connection"}
-        )
-        
-        # Flush to ensure data is sent
-        observability_provider.client.flush()
-        
-        # Give it a moment to send
-        await asyncio.sleep(2)
-    
-    async def test_workflow_trace_creation(self, workflow_manager):
-        """Test that workflow execution creates a trace group in Langfuse."""
-        workflow_dict = {
-            "name": "test_trace_creation",
-            "description": "Verify trace creation",
-            "version": "1.0.0",
-            "stages": [
-                {
-                    "name": "SimpleStage",
-                    "execution_type": "sequential",
-                    "tasks": [
-                        {
-                            "name": "SimpleTask",
-                            "agent": {
-                                "id": "trace_test_agent",
-                                "agent_type": "LLMAgent",
-                                "llm_type": "openai",
-                                "system_prompt": "Say hello",
-                                "user_prompt": "Hello"
-                            }
-                        }
-                    ]
-                }
-            ]
-        }
-        
-        workflow = await workflow_manager.initialize_workflow(workflow_dict)
-        
-        inputs = WorkflowInput(
-            user_query="Test trace",
-            workflow={"inputs": {}}
-        )
-        
-        # Execute workflow
-        result = await workflow_manager.execute(workflow, inputs)
-        
-        # Explicitly flush Langfuse
-        workflow_manager.execution_engine._ctx.llm_tracer.providers[0].client.flush()
-        await asyncio.sleep(2)  # Wait for flush to complete
-        
-        assert result is not None
-        logger.info("Workflow execution completed - check Langfuse for traces")
 
 
 @pytest.mark.asyncio

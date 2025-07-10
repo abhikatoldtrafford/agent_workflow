@@ -383,37 +383,12 @@ class LangfuseLLMObservabilityProvider(BaseLLMObservabilityProvider):
         userid: Optional[str] = None,
         enabled: bool = True
     ) -> None:
-        """
-        Initialize with Langfuse credentials.
-        
-        Args:
-            public_key: Langfuse public key
-            secret_key: Langfuse secret key
-            host: Langfuse host URL (defaults to Langfuse Cloud)
-            userid: Optional user ID for tracking
-            enabled: Whether to enable Langfuse (can be disabled for testing)
-        """
+        """Initialize with Langfuse credentials."""
         self.enabled = enabled
         self.client = None
         self._langfuse_available = False
         
-        if self.enabled:
-            try:
-                from langfuse import Langfuse
-                self.client = Langfuse(
-                    public_key=public_key,
-                    secret_key=secret_key,
-                    host=host,
-                )
-                self._langfuse_available = True
-                logger.info("Langfuse observability provider initialized successfully")
-            except ImportError:
-                logger.warning("Langfuse package not installed. Install with: pip install langfuse")
-                self.enabled = False
-            except Exception as e:
-                logger.error(f"Error initializing Langfuse client: {e}")
-                self.enabled = False
-        
+        # Initialize instance variables first
         self._sessionID: Optional[str] = None
         self._current_span: Any = None
         self._current_agent: Any = None
@@ -421,6 +396,52 @@ class LangfuseLLMObservabilityProvider(BaseLLMObservabilityProvider):
         self._current_trace_id: Optional[str] = None
         self.userid = userid
         self._pending_traces: Dict[str, Dict[str, Any]] = {}
+        
+        if self.enabled:
+            try:
+                from langfuse import Langfuse
+                
+                # Validate inputs
+                if not public_key or not secret_key:
+                    raise ValueError("public_key and secret_key are required for Langfuse initialization")
+                
+                # Clean up host URL if needed
+                if host and host.startswith('"') and host.endswith('"'):
+                    host = host[1:-1]
+                    
+                # Create client using v2 API
+                self.client = Langfuse(
+                    public_key=public_key,
+                    secret_key=secret_key,
+                    host=host,
+                )
+                
+                # Verify connection with auth_check (v2 method)
+                try:
+                    auth_result = self.client.auth_check()
+                    if auth_result:
+                        self._langfuse_available = True
+                        logger.info(f"Langfuse observability provider initialized successfully. Host: {host}")
+                    else:
+                        raise Exception("auth_check() returned False")
+                except Exception as auth_error:
+                    logger.error(f"Langfuse authentication failed: {auth_error}")
+                    logger.error(f"Please check your credentials and host: {host}")
+                    self.client = None
+                    self.enabled = False
+                    
+            except ImportError:
+                logger.warning("Langfuse package not installed. Install with: pip install langfuse>=2.0.0,<3.0.0")
+                self.enabled = False
+            except ValueError as ve:
+                logger.error(f"Invalid Langfuse configuration: {ve}")
+                self.enabled = False
+            except Exception as e:
+                logger.error(f"Error initializing Langfuse client: {type(e).__name__}: {e}")
+                logger.error("Please verify your Langfuse credentials and network connectivity")
+                self.enabled = False
+        else:
+            logger.info("Langfuse observability provider is disabled")
         
     # -- Generate ids --------------------------------
     def gen_group_id(self) -> str:

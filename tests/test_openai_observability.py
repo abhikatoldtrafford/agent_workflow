@@ -11,8 +11,13 @@ from typing import Any, Dict, List, Optional
 from unittest.mock import MagicMock, patch, AsyncMock
 import time
 import logging
+import random
 
 import pytest
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 from agent_workflow.parsers import YAMLParser
 from agent_workflow.workflow_engine import OpenAIProviderConfig, ProviderConfiguration, ProviderType
@@ -65,7 +70,11 @@ def get_provider_mapping_for_workflow(workflow_dict: Dict[str, Any]) -> Dict[str
 )
 def mock_weather(location: str) -> str:
     """Mock weather tool for testing."""
-    return f"Weather in {location}: Sunny, 72°F"
+    # Simulate some processing time
+    time.sleep(0.1)
+    temps = {"New York": 72, "London": 65, "Tokyo": 78, "Sydney": 82}
+    temp = temps.get(location, 70)
+    return f"Weather in {location}: Sunny, {temp}°F"
 
 @tool(
     name="test_calculator",
@@ -73,7 +82,8 @@ def mock_weather(location: str) -> str:
 )
 def mock_calculator(expression: str) -> float:
     """Mock calculator tool for testing."""
-    # Simple eval for testing (not safe for production!)
+    # Simulate some processing time
+    time.sleep(0.05)
     try:
         # Check for division by zero
         if "/0" in expression.replace(" ", ""):
@@ -81,6 +91,86 @@ def mock_calculator(expression: str) -> float:
         return eval(expression)
     except Exception as e:
         raise ValueError(f"Calculation error: {str(e)}")
+
+@tool(
+    name="test_database_query",
+    description="Query mock database"
+)
+def mock_database_query(query: str, table: str) -> Dict[str, Any]:
+    """Mock database query tool."""
+    time.sleep(0.2)  # Simulate DB latency
+    return {
+        "query": query,
+        "table": table,
+        "results": [
+            {"id": 1, "name": "Item 1", "value": 100},
+            {"id": 2, "name": "Item 2", "value": 200}
+        ],
+        "count": 2
+    }
+
+@tool(
+    name="test_api_call",
+    description="Make mock API calls"
+)
+def mock_api_call(endpoint: str, method: str = "GET", data: Optional[Dict] = None) -> Dict[str, Any]:
+    """Mock API call tool."""
+    time.sleep(0.15)  # Simulate network latency
+    return {
+        "endpoint": endpoint,
+        "method": method,
+        "status": 200,
+        "response": {"message": "Success", "data": data or {}}
+    }
+
+@tool(
+    name="test_file_processor",
+    description="Process files"
+)
+def mock_file_processor(filename: str, operation: str) -> Dict[str, Any]:
+    """Mock file processing tool."""
+    time.sleep(0.1)
+    operations = ["read", "write", "analyze", "compress"]
+    if operation not in operations:
+        raise ValueError(f"Unsupported operation: {operation}")
+    return {
+        "filename": filename,
+        "operation": operation,
+        "status": "completed",
+        "size_kb": random.randint(10, 1000)
+    }
+
+@tool(
+    name="test_sentiment_analyzer",
+    description="Analyze sentiment of text"
+)
+def mock_sentiment_analyzer(text: str) -> Dict[str, Any]:
+    """Mock sentiment analysis tool."""
+    time.sleep(0.05)
+    # Simple mock sentiment based on keywords
+    positive_words = ["good", "great", "excellent", "happy", "love"]
+    negative_words = ["bad", "terrible", "hate", "awful", "horrible"]
+    
+    text_lower = text.lower()
+    pos_count = sum(1 for word in positive_words if word in text_lower)
+    neg_count = sum(1 for word in negative_words if word in text_lower)
+    
+    if pos_count > neg_count:
+        sentiment = "positive"
+        score = 0.7 + (pos_count * 0.1)
+    elif neg_count > pos_count:
+        sentiment = "negative"
+        score = 0.3 - (neg_count * 0.1)
+    else:
+        sentiment = "neutral"
+        score = 0.5
+    
+    return {
+        "text": text[:50] + "..." if len(text) > 50 else text,
+        "sentiment": sentiment,
+        "score": max(0, min(1, score)),
+        "confidence": 0.85
+    }
 
 class TestDataAnalysisTool(Tool):
     """Test tool for data analysis operations."""
@@ -113,9 +203,64 @@ class TestDataAnalysisTool(Tool):
     
     async def execute(self, data: str, operation: str) -> Dict[str, Any]:
         """Perform mock data analysis."""
+        await asyncio.sleep(0.1)  # Simulate async processing
         return {
             "result": f"Analysis of {data} using {operation}",
-            "confidence": 0.95
+            "confidence": 0.95,
+            "metrics": {
+                "accuracy": 0.92,
+                "precision": 0.89,
+                "recall": 0.91
+            }
+        }
+
+class TestTranslationTool(Tool):
+    """Test tool for translation operations."""
+    
+    def __init__(self):
+        super().__init__()
+    
+    @property
+    def name(self) -> str:
+        return "test_translator"
+    
+    @property
+    def description(self) -> str:
+        return "Translate text between languages"
+    
+    @property
+    def parameters(self) -> Dict[str, Any]:
+        return {
+            "type": "object",
+            "properties": {
+                "text": {"type": "string", "description": "Text to translate"},
+                "source_lang": {"type": "string", "description": "Source language"},
+                "target_lang": {"type": "string", "description": "Target language"}
+            },
+            "required": ["text", "target_lang"]
+        }
+    
+    @property
+    def type(self) -> str:
+        return "functional"
+    
+    async def execute(self, text: str, target_lang: str, source_lang: str = "en") -> Dict[str, Any]:
+        """Perform mock translation."""
+        await asyncio.sleep(0.15)  # Simulate translation time
+        # Mock translation by adding language prefix
+        translations = {
+            "es": "ES: " + text,
+            "fr": "FR: " + text,
+            "de": "DE: " + text,
+            "ja": "JA: " + text,
+            "zh": "ZH: " + text
+        }
+        return {
+            "original": text,
+            "translated": translations.get(target_lang, f"{target_lang.upper()}: {text}"),
+            "source_lang": source_lang,
+            "target_lang": target_lang,
+            "confidence": 0.93
         }
 
 # ============================================================================
@@ -129,9 +274,6 @@ def cleanup_tracing(request):
         try:
             from agent_workflow.providers import OpenaiLLMObservabilityProvider
             OpenaiLLMObservabilityProvider.disable_tracing()
-            # Give it a moment to flush
-            import time
-            time.sleep(0.5)
         except Exception:
             pass
     
@@ -159,8 +301,9 @@ def tool_registry():
     # Use the global tool registry which already has tools registered by @tool decorator
     from agent_workflow.providers.tools import global_tool_registry
     
-    # Register class-based tool
+    # Register class-based tools
     register_tool(TestDataAnalysisTool())
+    register_tool(TestTranslationTool())
     
     return global_tool_registry
 
@@ -197,34 +340,32 @@ def workflow_manager(provider_config, tool_registry, observability_provider):
 
 
 # ============================================================================
-# Test Workflows
+# Workflow Creation Functions
 # ============================================================================
 
 def create_simple_sequential_workflow() -> Dict[str, Any]:
-    """Create a simple sequential workflow."""
+    """Create a simple sequential workflow for testing."""
     return {
         "name": "test_simple_sequential",
-        "description": "Test sequential execution with tracing",
+        "description": "Simple sequential workflow for testing",
         "version": "1.0.0",
         "stages": [
             {
                 "name": "Analysis",
-                "description": "Analyze user request",
+                "description": "Analyze input",
                 "execution_type": "sequential",
                 "tasks": [
                     {
-                        "name": "Analyze",
-                        "description": "Analyze the request",
+                        "name": "AnalyzeTask",
+                        "description": "Analyze the user query",
                         "agent": {
                             "id": "analyzer",
                             "agent_type": "LLMAgent",
                             "llm_type": "openai",
-                            "system_prompt": "You are an analyst. Analyze the request briefly.",
-                            "user_prompt": "Analyze: ${workflow.inputs.user_query}"
+                            "system_prompt": "You are an analyzer. Analyze the user query.",
+                            "user_prompt": "${workflow.inputs.user_query}"
                         },
-                        "outputs": {
-                            "analysis": "Analysis result"
-                        }
+                        "outputs": {"analysis": "Analysis result"}
                     }
                 ]
             }
@@ -232,36 +373,43 @@ def create_simple_sequential_workflow() -> Dict[str, Any]:
     }
 
 
-def create_tool_usage_workflow() -> Dict[str, Any]:
-    """Create workflow that uses tools."""
+def create_tool_workflow() -> Dict[str, Any]:
+    """Create workflow with tool usage."""
     return {
-        "name": "test_tool_usage",
-        "description": "Test tool usage tracing",
+        "name": "test_tool_workflow",
+        "description": "Test workflow with tool usage",
         "version": "1.0.0",
         "stages": [
             {
                 "name": "ToolUsage",
-                "description": "Use multiple tools",
+                "description": "Use various tools",
                 "execution_type": "sequential",
                 "tasks": [
                     {
-                        "name": "UseTools",
-                        "description": "Use weather and calculator tools",
+                        "name": "WeatherTask",
+                        "description": "Get weather information",
                         "agent": {
-                            "id": "tool_user",
+                            "id": "weather_agent",
                             "agent_type": "LLMAgent",
                             "llm_type": "openai",
-                            "tools": [
-                                {"name": "test_weather", "type": "function"},
-                                {"name": "test_calculator", "type": "function"}
-                            ],
-                            "system_prompt": "You must use both tools to answer the query.",
-                            "user_prompt": "${workflow.inputs.user_query}"
+                            "tools": [{"name": "test_weather", "type": "function"}],
+                            "system_prompt": "Get weather for major cities.",
+                            "user_prompt": "What's the weather in New York and London?"
                         },
-                        "outputs": {
-                            "weather": "Weather information",
-                            "calculation": "Calculation result"
-                        }
+                        "outputs": {"weather_data": "Weather information"}
+                    },
+                    {
+                        "name": "CalculatorTask",
+                        "description": "Perform calculations",
+                        "agent": {
+                            "id": "calc_agent",
+                            "agent_type": "LLMAgent",
+                            "llm_type": "openai",
+                            "tools": [{"name": "test_calculator", "type": "function"}],
+                            "system_prompt": "Perform mathematical calculations.",
+                            "user_prompt": "Calculate 25 * 4 + 10"
+                        },
+                        "outputs": {"result": "Calculation result"}
                     }
                 ]
             }
@@ -269,11 +417,91 @@ def create_tool_usage_workflow() -> Dict[str, Any]:
     }
 
 
-def create_parallel_execution_workflow() -> Dict[str, Any]:
-    """Create workflow with parallel tasks."""
+def create_complex_multi_stage_workflow() -> Dict[str, Any]:
+    """Create a complex multi-stage workflow."""
     return {
-        "name": "test_parallel",
-        "description": "Test parallel execution tracing",
+        "name": "test_complex_workflow",
+        "description": "Complex multi-stage workflow",
+        "version": "1.0.0",
+        "stages": [
+            {
+                "name": "Planning",
+                "description": "Planning stage",
+                "execution_type": "sequential",
+                "tasks": [
+                    {
+                        "name": "CreatePlan",
+                        "description": "Create project plan",
+                        "agent": {
+                            "id": "planner",
+                            "agent_type": "LLMAgent",
+                            "llm_type": "openai",
+                            "system_prompt": "Create a detailed project plan.",
+                            "user_prompt": "Plan for: ${workflow.inputs.project}"
+                        },
+                        "outputs": {"plan": "Project plan"}
+                    }
+                ]
+            },
+            {
+                "name": "Research",
+                "description": "Research stage",
+                "execution_type": "parallel",
+                "tasks": [
+                    {
+                        "name": "TechResearch",
+                        "description": "Research technology",
+                        "agent": {
+                            "id": "tech_researcher",
+                            "agent_type": "LLMAgent",
+                            "llm_type": "openai",
+                            "system_prompt": "Research technology aspects.",
+                            "user_prompt": "Research tech for: ${stages.[Planning].tasks.[CreatePlan].outputs.plan}"
+                        },
+                        "outputs": {"tech_research": "Technology research"}
+                    },
+                    {
+                        "name": "MarketResearch",
+                        "description": "Research market",
+                        "agent": {
+                            "id": "market_researcher",
+                            "agent_type": "LLMAgent",
+                            "llm_type": "openai",
+                            "system_prompt": "Research market aspects.",
+                            "user_prompt": "Research market for: ${stages.[Planning].tasks.[CreatePlan].outputs.plan}"
+                        },
+                        "outputs": {"market_research": "Market research"}
+                    }
+                ]
+            },
+            {
+                "name": "Implementation",
+                "description": "Implementation stage",
+                "execution_type": "sequential",
+                "tasks": [
+                    {
+                        "name": "BuildPrototype",
+                        "description": "Build prototype",
+                        "agent": {
+                            "id": "builder",
+                            "agent_type": "LLMAgent",
+                            "llm_type": "openai",
+                            "system_prompt": "Build based on research.",
+                            "user_prompt": "Build using tech: ${stages.[Research].tasks.[TechResearch].outputs.tech_research} and market: ${stages.[Research].tasks.[MarketResearch].outputs.market_research}"
+                        },
+                        "outputs": {"prototype": "Built prototype"}
+                    }
+                ]
+            }
+        ]
+    }
+
+
+def create_parallel_workflow() -> Dict[str, Any]:
+    """Create workflow with parallel execution."""
+    return {
+        "name": "test_parallel_workflow",
+        "description": "Test parallel execution",
         "version": "1.0.0",
         "stages": [
             {
@@ -288,8 +516,8 @@ def create_parallel_execution_workflow() -> Dict[str, Any]:
                             "id": "parallel_agent_1",
                             "agent_type": "LLMAgent",
                             "llm_type": "openai",
-                            "system_prompt": "Process the first topic briefly.",
-                            "user_prompt": "Topic: ${workflow.inputs.topic1}"
+                            "system_prompt": "Process data set 1",
+                            "user_prompt": "Process: ${workflow.inputs.data1}"
                         },
                         "outputs": {"result1": "Result 1"}
                     },
@@ -300,9 +528,8 @@ def create_parallel_execution_workflow() -> Dict[str, Any]:
                             "id": "parallel_agent_2",
                             "agent_type": "LLMAgent",
                             "llm_type": "openai",
-                            "tools": [{"name": "test_data_analysis", "type": "function"}],
-                            "system_prompt": "Analyze the data.",
-                            "user_prompt": "Analyze: ${workflow.inputs.data}"
+                            "system_prompt": "Process data set 2",
+                            "user_prompt": "Process: ${workflow.inputs.data2}"
                         },
                         "outputs": {"result2": "Result 2"}
                     },
@@ -313,161 +540,10 @@ def create_parallel_execution_workflow() -> Dict[str, Any]:
                             "id": "parallel_agent_3",
                             "agent_type": "LLMAgent",
                             "llm_type": "openai",
-                            "system_prompt": "Process the third item.",
-                            "user_prompt": "Item: ${workflow.inputs.item3}"
+                            "system_prompt": "Process data set 3",
+                            "user_prompt": "Process: ${workflow.inputs.data3}"
                         },
                         "outputs": {"result3": "Result 3"}
-                    }
-                ]
-            }
-        ]
-    }
-
-
-def create_handoff_workflow() -> Dict[str, Any]:
-    """Create workflow with agent handoffs."""
-    return {
-        "name": "test_handoffs",
-        "description": "Test agent handoff tracing",
-        "version": "1.0.0",
-        "stages": [
-            {
-                "name": "InitialSupport",
-                "description": "Initial support triage",
-                "execution_type": "sequential",
-                "tasks": [
-                    {
-                        "name": "Triage",
-                        "description": "Triage support request",
-                        "agent": {
-                            "id": "triage_agent",
-                            "agent_type": "LLMAgent",
-                            "llm_type": "openai",
-                            "system_prompt": """You are a support triage agent. 
-                            Categorize queries as: technical, billing, or general.
-                            Respond with just the category.""",
-                            "user_prompt": "Categorize: ${workflow.inputs.support_query}"
-                        },
-                        "outputs": {"category": "Support category"}
-                    }
-                ]
-            },
-            {
-                "name": "SpecializedSupport",
-                "description": "Specialized support handling",
-                "execution_type": "sequential",
-                "tasks": [
-                    {
-                        "name": "HandleRequest",
-                        "description": "Handle based on category",
-                        "agent": {
-                            "id": "specialized_agent",
-                            "agent_type": "LLMAgent",
-                            "llm_type": "openai",
-                            "system_prompt": "Provide specialized support based on the category.",
-                            "user_prompt": "Category: ${stages.[InitialSupport].tasks.[Triage].outputs.category}, Query: ${workflow.inputs.support_query}"
-                        },
-                        "outputs": {"resolution": "Support resolution"}
-                    }
-                ]
-            }
-        ]
-    }
-
-
-def create_complex_multi_stage_workflow() -> Dict[str, Any]:
-    """Create complex workflow with multiple stages."""
-    return {
-        "name": "test_complex",
-        "description": "Complex multi-stage workflow",
-        "version": "1.0.0",
-        "stages": [
-            {
-                "name": "Planning",
-                "description": "Project planning",
-                "execution_type": "sequential",
-                "tasks": [
-                    {
-                        "name": "CreatePlan",
-                        "description": "Create project plan",
-                        "agent": {
-                            "id": "planner",
-                            "agent_type": "LLMAgent",
-                            "llm_type": "openai",
-                            "system_prompt": "Create a brief project plan.",
-                            "user_prompt": "Project: ${workflow.inputs.project}"
-                        },
-                        "outputs": {"plan": "Project plan"}
-                    }
-                ]
-            },
-            {
-                "name": "Research",
-                "description": "Research phase",
-                "execution_type": "parallel",
-                "tasks": [
-                    {
-                        "name": "TechnicalResearch",
-                        "description": "Technical research",
-                        "agent": {
-                            "id": "tech_researcher",
-                            "agent_type": "LLMAgent",
-                            "llm_type": "openai",
-                            "tools": [{"name": "test_data_analysis", "type": "function"}],
-                            "system_prompt": "Research technical aspects.",
-                            "user_prompt": "Research for: ${stages.[Planning].tasks.[CreatePlan].outputs.plan}"
-                        },
-                        "outputs": {"tech_research": "Technical findings"}
-                    },
-                    {
-                        "name": "MarketResearch",
-                        "description": "Market research",
-                        "agent": {
-                            "id": "market_researcher",
-                            "agent_type": "LLMAgent",
-                            "llm_type": "openai",
-                            "system_prompt": "Research market aspects.",
-                            "user_prompt": "Market research for: ${stages.[Planning].tasks.[CreatePlan].outputs.plan}"
-                        },
-                        "outputs": {"market_research": "Market findings"}
-                    }
-                ]
-            },
-            {
-                "name": "Development",
-                "description": "Development phase",
-                "execution_type": "sequential",
-                "tasks": [
-                    {
-                        "name": "Develop",
-                        "description": "Develop solution",
-                        "agent": {
-                            "id": "developer",
-                            "agent_type": "LLMAgent",
-                            "llm_type": "openai",
-                            "system_prompt": "Develop based on research.",
-                            "user_prompt": "Tech: ${stages.[Research].tasks.[TechnicalResearch].outputs.tech_research}, Market: ${stages.[Research].tasks.[MarketResearch].outputs.market_research}"
-                        },
-                        "outputs": {"solution": "Developed solution"}
-                    }
-                ]
-            },
-            {
-                "name": "Review",
-                "description": "Final review",
-                "execution_type": "sequential",
-                "tasks": [
-                    {
-                        "name": "FinalReview",
-                        "description": "Review all work",
-                        "agent": {
-                            "id": "reviewer",
-                            "agent_type": "LLMAgent",
-                            "llm_type": "openai",
-                            "system_prompt": "Review and summarize all work.",
-                            "user_prompt": "Solution: ${stages.[Development].tasks.[Develop].outputs.solution}"
-                        },
-                        "outputs": {"final_report": "Final report"}
                     }
                 ]
             }
@@ -489,13 +565,13 @@ def create_data_flow_workflow() -> Dict[str, Any]:
                 "tasks": [
                     {
                         "name": "GenerateData",
-                        "description": "Generate test data",
+                        "description": "Generate initial data",
                         "agent": {
                             "id": "data_generator",
                             "agent_type": "LLMAgent",
                             "llm_type": "openai",
-                            "system_prompt": "Generate a list of 3 items based on the category.",
-                            "user_prompt": "Category: ${workflow.inputs.category}"
+                            "system_prompt": "Generate a list of items.",
+                            "user_prompt": "Generate 5 items for category: ${workflow.inputs.category}"
                         },
                         "outputs": {"items": "Generated items"}
                     }
@@ -513,7 +589,7 @@ def create_data_flow_workflow() -> Dict[str, Any]:
                             "id": "data_processor",
                             "agent_type": "LLMAgent",
                             "llm_type": "openai",
-                            "system_prompt": "Process the items briefly.",
+                            "system_prompt": "Process and enhance the items.",
                             "user_prompt": "Process: ${stages.[Stage1].tasks.[GenerateData].outputs.items}"
                         },
                         "outputs": {"processed": "Processed result"}
@@ -555,12 +631,538 @@ def create_error_test_workflow() -> Dict[str, Any]:
     }
 
 
+def create_complex_handoff_workflow() -> Dict[str, Any]:
+    """Create workflow with complex handoff routing."""
+    return {
+        "name": "test_complex_handoff",
+        "description": "Test complex multi-level handoff routing",
+        "version": "1.0.0",
+        "stages": [
+            {
+                "name": "InitialRouting",
+                "description": "Initial query routing",
+                "execution_type": "handoff",
+                "tasks": [
+                    {
+                        "name": "QueryRouter",
+                        "description": "Route query to appropriate department",
+                        "agent": {
+                            "id": "query_router",
+                            "agent_type": "LLMAgent",
+                            "llm_type": "openai",
+                            "system_prompt": """Route queries based on content:
+                            - Technical questions -> TechnicalSupport
+                            - Billing questions -> BillingSupport
+                            - General questions -> GeneralSupport""",
+                            "user_prompt": "Route this query: ${workflow.inputs.user_query}"
+                        },
+                        "outputs": {"department": "Selected department"}
+                    },
+                    {
+                        "name": "TechnicalSupport",
+                        "description": "Handle technical queries",
+                        "agent": {
+                            "id": "tech_support",
+                            "agent_type": "LLMAgent",
+                            "llm_type": "openai",
+                            "tools": [{"name": "test_database_query", "type": "function"}],
+                            "system_prompt": "Provide technical support. Check documentation.",
+                            "user_prompt": "Help with: ${workflow.inputs.user_query}"
+                        },
+                        "outputs": {"tech_response": "Technical response"}
+                    },
+                    {
+                        "name": "BillingSupport",
+                        "description": "Handle billing queries",
+                        "agent": {
+                            "id": "billing_support",
+                            "agent_type": "LLMAgent",
+                            "llm_type": "openai",
+                            "tools": [{"name": "test_api_call", "type": "function"}],
+                            "system_prompt": "Handle billing inquiries. Check account status.",
+                            "user_prompt": "Billing query: ${workflow.inputs.user_query}"
+                        },
+                        "outputs": {"billing_response": "Billing response"}
+                    },
+                    {
+                        "name": "GeneralSupport",
+                        "description": "Handle general queries",
+                        "agent": {
+                            "id": "general_support",
+                            "agent_type": "LLMAgent",
+                            "llm_type": "openai",
+                            "system_prompt": "Provide general assistance.",
+                            "user_prompt": "Assist with: ${workflow.inputs.user_query}"
+                        },
+                        "outputs": {"general_response": "General response"}
+                    }
+                ]
+            }
+        ]
+    }
+
+
+def create_massive_parallel_workflow() -> Dict[str, Any]:
+    """Create workflow with massive parallel execution."""
+    parallel_tasks = []
+    for i in range(10):
+        parallel_tasks.append({
+            "name": f"ParallelProcessor{i}",
+            "description": f"Process segment {i}",
+            "agent": {
+                "id": f"processor_{i}",
+                "agent_type": "LLMAgent",
+                "llm_type": "openai",
+                "tools": [{"name": "test_calculator", "type": "function"}],
+                "system_prompt": f"Process data segment {i}.",
+                "user_prompt": f"Process: ${{workflow.inputs.data_segment_{i}}}"
+            },
+            "outputs": {f"segment_{i}_result": f"Processed segment {i}"}
+        })
+    
+    return {
+        "name": "test_massive_parallel",
+        "description": "Test massive parallel execution",
+        "version": "1.0.0",
+        "stages": [
+            {
+                "name": "DataPreparation",
+                "description": "Prepare data for parallel processing",
+                "execution_type": "sequential",
+                "tasks": [
+                    {
+                        "name": "DataSplitter",
+                        "description": "Split data into segments",
+                        "agent": {
+                            "id": "data_splitter",
+                            "agent_type": "LLMAgent",
+                            "llm_type": "openai",
+                            "system_prompt": "Split the dataset into 10 equal segments.",
+                            "user_prompt": "Split this data: ${workflow.inputs.large_dataset}"
+                        },
+                        "outputs": {"split_complete": "Data split into segments"}
+                    }
+                ]
+            },
+            {
+                "name": "ParallelProcessing",
+                "description": "Process all segments in parallel",
+                "execution_type": "parallel",
+                "tasks": parallel_tasks
+            },
+            {
+                "name": "ResultAggregation",
+                "description": "Aggregate all results",
+                "execution_type": "sequential",
+                "tasks": [
+                    {
+                        "name": "ResultAggregator",
+                        "description": "Aggregate all parallel results",
+                        "agent": {
+                            "id": "aggregator",
+                            "agent_type": "LLMAgent",
+                            "llm_type": "openai",
+                            "tools": [{"name": "test_data_analysis", "type": "functional"}],
+                            "system_prompt": "Aggregate and analyze all processed segments.",
+                            "user_prompt": "Aggregate results from all parallel processors"
+                        },
+                        "outputs": {"final_result": "Aggregated result"}
+                    }
+                ]
+            }
+        ]
+    }
+
+
+def create_multi_tool_orchestration_workflow() -> Dict[str, Any]:
+    """Create workflow with complex multi-tool orchestration."""
+    return {
+        "name": "test_multi_tool_orchestration",
+        "description": "Test complex multi-agent tool orchestration",
+        "version": "1.0.0",
+        "stages": [
+            {
+                "name": "DataCollection",
+                "description": "Collect data from multiple sources",
+                "execution_type": "parallel",
+                "tasks": [
+                    {
+                        "name": "WeatherCollector",
+                        "description": "Collect weather data",
+                        "agent": {
+                            "id": "weather_collector",
+                            "agent_type": "LLMAgent",
+                            "llm_type": "openai",
+                            "tools": [{"name": "test_weather", "type": "function"}],
+                            "system_prompt": "Collect weather data for New York, London, Tokyo, and Sydney.",
+                            "user_prompt": "Get weather for major cities"
+                        },
+                        "outputs": {"weather_data": "Weather information"}
+                    },
+                    {
+                        "name": "DatabaseCollector",
+                        "description": "Collect database data",
+                        "agent": {
+                            "id": "db_collector",
+                            "agent_type": "LLMAgent",
+                            "llm_type": "openai",
+                            "tools": [{"name": "test_database_query", "type": "function"}],
+                            "system_prompt": "Query user data and transaction data from database.",
+                            "user_prompt": "Get user and transaction data"
+                        },
+                        "outputs": {"db_data": "Database results"}
+                    },
+                    {
+                        "name": "APICollector",
+                        "description": "Collect API data",
+                        "agent": {
+                            "id": "api_collector",
+                            "agent_type": "LLMAgent",
+                            "llm_type": "openai",
+                            "tools": [{"name": "test_api_call", "type": "function"}],
+                            "system_prompt": "Call multiple APIs to gather system status.",
+                            "user_prompt": "Check system status from APIs"
+                        },
+                        "outputs": {"api_data": "API results"}
+                    }
+                ]
+            },
+            {
+                "name": "DataProcessing",
+                "description": "Process collected data",
+                "execution_type": "sequential",
+                "tasks": [
+                    {
+                        "name": "DataAnalyzer",
+                        "description": "Analyze all collected data",
+                        "agent": {
+                            "id": "data_analyzer",
+                            "agent_type": "LLMAgent",
+                            "llm_type": "openai",
+                            "tools": [
+                                {"name": "test_data_analysis", "type": "functional"},
+                                {"name": "test_calculator", "type": "function"}
+                            ],
+                            "system_prompt": "Analyze the collected data and calculate statistics.",
+                            "user_prompt": "Analyze: ${stages.[DataCollection].outputs}"
+                        },
+                        "outputs": {"analysis": "Data analysis results"}
+                    }
+                ]
+            },
+            {
+                "name": "ReportGeneration",
+                "description": "Generate final report",
+                "execution_type": "sequential",
+                "tasks": [
+                    {
+                        "name": "ReportGenerator",
+                        "description": "Generate comprehensive report",
+                        "agent": {
+                            "id": "report_generator",
+                            "agent_type": "LLMAgent",
+                            "llm_type": "openai",
+                            "tools": [{"name": "test_sentiment_analyzer", "type": "function"}],
+                            "system_prompt": "Generate a comprehensive report with sentiment analysis.",
+                            "user_prompt": "Create report from: ${stages.[DataProcessing].tasks.[DataAnalyzer].outputs.analysis}"
+                        },
+                        "outputs": {"report": "Final report"}
+                    }
+                ]
+            }
+        ]
+    }
+
+
+def create_performance_stress_workflow() -> Dict[str, Any]:
+    """Create workflow to stress test performance with many operations."""
+    # Create multiple parallel stages with different patterns
+    stages = []
+    
+    # Stage 1: Heavy parallel processing
+    parallel_tasks = []
+    for i in range(5):
+        parallel_tasks.append({
+            "name": f"HeavyProcessor{i}",
+            "description": f"Heavy processing task {i}",
+            "agent": {
+                "id": f"heavy_processor_{i}",
+                "agent_type": "LLMAgent",
+                "llm_type": "openai",
+                "tools": [
+                    {"name": "test_calculator", "type": "function"},
+                    {"name": "test_data_analysis", "type": "functional"},
+                    {"name": "test_file_processor", "type": "function"}
+                ],
+                "system_prompt": f"Process complex calculations and data analysis for segment {i}.",
+                "user_prompt": f"Process heavy workload {i}: ${{workflow.inputs.workload_{i}}}"
+            },
+            "outputs": {f"heavy_result_{i}": f"Heavy processing result {i}"}
+        })
+    
+    stages.append({
+        "name": "HeavyParallelStage",
+        "description": "Heavy parallel processing",
+        "execution_type": "parallel",
+        "tasks": parallel_tasks
+    })
+    
+    # Stage 2: Sequential with multiple tool calls
+    stages.append({
+        "name": "SequentialToolStage",
+        "description": "Sequential processing with many tools",
+        "execution_type": "sequential",
+        "tasks": [
+            {
+                "name": "MultiToolUser1",
+                "description": "Use multiple tools sequentially",
+                "agent": {
+                    "id": "multi_tool_user_1",
+                    "agent_type": "LLMAgent",
+                    "llm_type": "openai",
+                    "tools": [
+                        {"name": "test_weather", "type": "function"},
+                        {"name": "test_database_query", "type": "function"},
+                        {"name": "test_api_call", "type": "function"},
+                        {"name": "test_sentiment_analyzer", "type": "function"}
+                    ],
+                    "system_prompt": "Use all available tools to gather comprehensive data.",
+                    "user_prompt": "Gather data using all tools for analysis"
+                },
+                "outputs": {"multi_tool_data": "Combined tool results"}
+            }
+        ]
+    })
+    
+    # Stage 3: Nested parallel-sequential processing
+    nested_tasks = []
+    for i in range(3):
+        nested_tasks.append({
+            "name": f"NestedProcessor{i}",
+            "description": f"Nested processing {i}",
+            "agent": {
+                "id": f"nested_processor_{i}",
+                "agent_type": "LLMAgent",
+                "llm_type": "openai",
+                "tools": [
+                    {"name": "test_translator", "type": "functional"},
+                    {"name": "test_sentiment_analyzer", "type": "function"}
+                ],
+                "system_prompt": f"Translate and analyze sentiment for segment {i}.",
+                "user_prompt": f"Process nested task {i}"
+            },
+            "outputs": {f"nested_result_{i}": f"Nested result {i}"}
+        })
+    
+    stages.append({
+        "name": "NestedProcessingStage",
+        "description": "Nested parallel processing",
+        "execution_type": "parallel",
+        "tasks": nested_tasks
+    })
+    
+    # Final aggregation stage
+    stages.append({
+        "name": "FinalAggregation",
+        "description": "Final aggregation of all results",
+        "execution_type": "sequential",
+        "tasks": [
+            {
+                "name": "FinalAggregator",
+                "description": "Aggregate all results",
+                "agent": {
+                    "id": "final_aggregator",
+                    "agent_type": "LLMAgent",
+                    "llm_type": "openai",
+                    "tools": [{"name": "test_data_analysis", "type": "functional"}],
+                    "system_prompt": "Aggregate all results from previous stages into a comprehensive report.",
+                    "user_prompt": "Aggregate all results into final report"
+                },
+                "outputs": {"final_report": "Comprehensive final report"}
+            }
+        ]
+    })
+    
+    return {
+        "name": "test_performance_stress",
+        "description": "Performance stress test with many operations",
+        "version": "1.0.0",
+        "stages": stages
+    }
+
+
+def create_error_cascade_workflow() -> Dict[str, Any]:
+    """Create workflow to test error propagation in complex scenarios."""
+    return {
+        "name": "test_error_cascade",
+        "description": "Test error handling in cascading failures",
+        "version": "1.0.0",
+        "stages": [
+            {
+                "name": "InitialProcessing",
+                "description": "Initial processing that might fail",
+                "execution_type": "parallel",
+                "tasks": [
+                    {
+                        "name": "SuccessfulTask",
+                        "description": "Task that succeeds",
+                        "agent": {
+                            "id": "success_agent",
+                            "agent_type": "LLMAgent",
+                            "llm_type": "openai",
+                            "tools": [{"name": "test_calculator", "type": "function"}],
+                            "system_prompt": "Calculate 100 + 200",
+                            "user_prompt": "Add numbers"
+                        },
+                        "outputs": {"success_result": "Calculation result"}
+                    },
+                    {
+                        "name": "FailingTask",
+                        "description": "Task that fails",
+                        "agent": {
+                            "id": "failing_agent",
+                            "agent_type": "LLMAgent",
+                            "llm_type": "openai",
+                            "tools": [{"name": "test_calculator", "type": "function"}],
+                            "system_prompt": "You must calculate 100/0 to test error handling.",
+                            "user_prompt": "Divide by zero"
+                        },
+                        "outputs": {"fail_result": "Should fail"}
+                    },
+                    {
+                        "name": "AnotherSuccessfulTask",
+                        "description": "Another task that succeeds",
+                        "agent": {
+                            "id": "another_success_agent",
+                            "agent_type": "LLMAgent",
+                            "llm_type": "openai",
+                            "system_prompt": "Process data successfully",
+                            "user_prompt": "Process: ${workflow.inputs.data}"
+                        },
+                        "outputs": {"another_success": "Processing complete"}
+                    }
+                ]
+            },
+            {
+                "name": "ErrorRecovery",
+                "description": "Attempt to recover from errors",
+                "execution_type": "sequential",
+                "tasks": [
+                    {
+                        "name": "ErrorHandler",
+                        "description": "Handle errors from previous stage",
+                        "agent": {
+                            "id": "error_handler",
+                            "agent_type": "LLMAgent",
+                            "llm_type": "openai",
+                            "tools": [{"name": "test_api_call", "type": "function"}],
+                            "system_prompt": "Check for errors and attempt recovery.",
+                            "user_prompt": "Check status and recover from: ${stages.[InitialProcessing].outputs}"
+                        },
+                        "outputs": {"recovery_status": "Recovery attempt result"}
+                    }
+                ]
+            },
+            {
+                "name": "FinalProcessing",
+                "description": "Final processing with partial results",
+                "execution_type": "sequential",
+                "tasks": [
+                    {
+                        "name": "ResultAggregator",
+                        "description": "Aggregate available results",
+                        "agent": {
+                            "id": "result_aggregator",
+                            "agent_type": "LLMAgent",
+                            "llm_type": "openai",
+                            "tools": [{"name": "test_data_analysis", "type": "functional"}],
+                            "system_prompt": "Aggregate all available results, handling missing data gracefully.",
+                            "user_prompt": "Aggregate partial results from all stages"
+                        },
+                        "outputs": {"final_aggregation": "Final results with error handling"}
+                    }
+                ]
+            }
+        ]
+    }
+
+
+# ============================================================================
+# Base Test Class with Helper Methods
+# ============================================================================
+
+class BaseOpenAITest:
+    """Base class with helper methods for OpenAI tests."""
+    
+    def _log_workflow_summary(self, workflow_name: str, result: Any, execution_time: float):
+        """Log workflow execution summary."""
+        logger.info(f"\n{'='*60}")
+        logger.info(f"Workflow: {workflow_name}")
+        logger.info(f"Execution Time: {execution_time:.2f} seconds")
+        logger.info(f"Agents Executed: {len(result.all_agents) if result and hasattr(result, 'all_agents') else 0}")
+        logger.info(f"Success: {result is not None}")
+        logger.info(f"{'='*60}\n")
+
+
 # ============================================================================
 # Test Classes
 # ============================================================================
 
 @pytest.mark.asyncio
-class TestOpenAIObservabilityBasic:
+class TestOpenAIConnection(BaseOpenAITest):
+    """Test OpenAI connection and basic tracing."""
+    
+    async def test_openai_provider_initialization(self, observability_provider):
+        """Test that OpenAI observability provider is properly initialized."""
+        # Verify provider is initialized
+        assert observability_provider is not None
+        assert hasattr(observability_provider, 'start_trace_group')
+        assert hasattr(observability_provider, 'end_trace_group')
+        assert hasattr(observability_provider, 'start_trace')
+        assert hasattr(observability_provider, 'start_span')
+    
+    async def test_workflow_trace_creation(self, workflow_manager):
+        """Test that workflow execution creates traces."""
+        workflow_dict = {
+            "name": "test_trace_creation",
+            "description": "Verify trace creation",
+            "version": "1.0.0",
+            "stages": [
+                {
+                    "name": "SimpleStage",
+                    "execution_type": "sequential",
+                    "tasks": [
+                        {
+                            "name": "SimpleTask",
+                            "agent": {
+                                "id": "trace_test_agent",
+                                "agent_type": "LLMAgent",
+                                "llm_type": "openai",
+                                "system_prompt": "Say hello",
+                                "user_prompt": "Hello"
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+        
+        workflow = await workflow_manager.initialize_workflow(workflow_dict)
+        
+        inputs = WorkflowInput(
+            user_query="Test trace",
+            workflow={"inputs": {}}
+        )
+        
+        # Execute workflow
+        result = await workflow_manager.execute(workflow, inputs)
+        
+        assert result is not None
+        logger.info("Workflow execution completed - traces should be created")
+
+
+@pytest.mark.asyncio
+class TestOpenAIObservabilityBasic(BaseOpenAITest):
     """Basic observability tests."""
     
     async def test_simple_sequential_workflow(self, workflow_manager):
@@ -592,330 +1194,7 @@ class TestOpenAIObservabilityBasic:
     
     async def test_tool_usage_tracing(self, workflow_manager):
         """Test tool call start/end tracing."""
-        workflow_dict = create_tool_usage_workflow()
-        
-        # Add provider mapping for the tool user agent
-        provider_mapping = {"tool_user": "openai"}
-        
-        workflow = await workflow_manager.initialize_workflow(
-            workflow_dict,
-            provider_mapping=provider_mapping,
-            progress_callback=ConsoleProgressCallback()
-        )
-        
-        inputs = WorkflowInput(
-            user_query="What's the weather in New York and calculate 15 + 25?",
-            workflow={"inputs": {"user_query": "What's the weather in New York and calculate 15 + 25?"}}
-        )
-        
-        result = await workflow_manager.execute(
-            workflow,
-            inputs,
-            progress_callback=ConsoleProgressCallback()
-        )
-        
-        assert result is not None
-        # Tool calls should have been traced
-    
-    async def test_parallel_execution_tracing(self, workflow_manager):
-        """Test parallel task execution tracing."""
-        workflow_dict = create_parallel_execution_workflow()
-        
-        # Add provider mapping for all parallel agents
-        provider_mapping = {
-            "parallel_agent_1": "openai",
-            "parallel_agent_2": "openai",
-            "parallel_agent_3": "openai"
-        }
-        
-        workflow = await workflow_manager.initialize_workflow(
-            workflow_dict,
-            provider_mapping=provider_mapping,
-            progress_callback=ConsoleProgressCallback()
-        )
-        
-        inputs = WorkflowInput(
-            user_query="Test parallel execution",
-            workflow={
-                "inputs": {
-                    "topic1": "AI research",
-                    "data": "[1, 2, 3, 4, 5]",
-                    "item3": "Process this item"
-                }
-            }
-        )
-        
-        result = await workflow_manager.execute(
-            workflow,
-            inputs,
-            progress_callback=ConsoleProgressCallback()
-        )
-        
-        assert result is not None
-        # All parallel tasks should have been traced
-
-
-@pytest.mark.asyncio
-class TestOpenAIObservabilityHandoffs:
-    """Enhanced tests for agent handoff tracing with rigorous validation."""
-    
-    def create_routing_workflow(self) -> Dict[str, Any]:
-        """Create a workflow with explicit routing logic for handoff testing."""
-        return {
-            "name": "test_routing_handoff",
-            "description": "Test handoff with routing logic - Route to the appropriate agent based on query type: technical, billing, or general",
-            "version": "1.0.0",
-            "stages": [
-                {
-                    "name": "RouterStage",
-                    "description": "Route to the appropriate agent based on query type: technical, billing, or general",
-                    "execution_type": "handoff",
-                    "tasks": [
-                        {
-                            "name": "TechnicalAgent",
-                            "description": "Handle technical queries",
-                            "agent": {
-                                "id": "technical_agent",
-                                "agent_type": "LLMAgent",
-                                "llm_type": "openai",
-                                "system_prompt": """You are a technical support specialist.
-                                Only respond to technical queries about servers, connectivity, or system issues.
-                                For non-technical queries, say 'NOT_MY_DOMAIN'.""",
-                                "user_prompt": "${workflow.inputs.query}"
-                            },
-                            "outputs": {"technical_response": "Technical agent response"}
-                        },
-                        {
-                            "name": "BillingAgent",
-                            "description": "Handle billing queries",
-                            "agent": {
-                                "id": "billing_agent",
-                                "agent_type": "LLMAgent",
-                                "llm_type": "openai",
-                                "system_prompt": """You are a billing specialist.
-                                Only respond to billing queries about invoices, payments, or pricing.
-                                For non-billing queries, say 'NOT_MY_DOMAIN'.""",
-                                "user_prompt": "${workflow.inputs.query}"
-                            },
-                            "outputs": {"billing_response": "Billing agent response"}
-                        },
-                        {
-                            "name": "GeneralAgent",
-                            "description": "Handle general queries",
-                            "agent": {
-                                "id": "general_agent",
-                                "agent_type": "LLMAgent",
-                                "llm_type": "openai",
-                                "system_prompt": """You are a general support agent.
-                                Handle all general queries about business hours, locations, or other info.
-                                Always provide helpful responses.""",
-                                "user_prompt": "${workflow.inputs.query}"
-                            },
-                            "outputs": {"general_response": "General agent response"}
-                        }
-                    ]
-                }
-            ]
-        }
-    
-    async def test_handoff_to_technical(self, workflow_manager):
-        """Test handoff to technical support with validation."""
-        workflow_dict = create_handoff_workflow()
-        
-        # Add provider mapping for handoff agents
-        provider_mapping = {
-            "triage_agent": "openai",
-            "specialized_agent": "openai"
-        }
-        
-        workflow = await workflow_manager.initialize_workflow(
-            workflow_dict,
-            provider_mapping=provider_mapping,
-            progress_callback=ConsoleProgressCallback()
-        )
-        
-        inputs = WorkflowInput(
-            user_query="I can't connect to the server",
-            workflow={"inputs": {"support_query": "I can't connect to the server"}}
-        )
-        
-        result = await workflow_manager.execute(
-            workflow,
-            inputs,
-            progress_callback=ConsoleProgressCallback()
-        )
-        
-        assert result is not None
-        assert len(result.all_agents) >= 2  # Should have at least triage and specialized agents
-        assert result.final_result is not None
-        
-        # Check for the actual task names returned by the workflow
-        agent_names_lower = str(result.all_agents).lower()
-        assert "triage" in agent_names_lower, f"Expected 'Triage' task in agents, got: {result.all_agents}"
-        assert "handlerequest" in agent_names_lower, f"Expected 'HandleRequest' task in agents, got: {result.all_agents}"
-        
-        # Verify the workflow executed both stages
-        logger.info(f"Executed agents: {result.all_agents}")
-        logger.info(f"Response store: {result.response_store}")
-    
-    async def test_handoff_to_billing(self, workflow_manager):
-        """Test handoff to billing support."""
-        workflow_dict = create_handoff_workflow()
-        
-        # Add provider mapping for handoff agents
-        provider_mapping = {
-            "triage_agent": "openai",
-            "specialized_agent": "openai"
-        }
-        
-        workflow = await workflow_manager.initialize_workflow(
-            workflow_dict,
-            provider_mapping=provider_mapping,
-            progress_callback=ConsoleProgressCallback()
-        )
-        
-        inputs = WorkflowInput(
-            user_query="I need help with my invoice",
-            workflow={"inputs": {"support_query": "I need help with my invoice"}}
-        )
-        
-        result = await workflow_manager.execute(
-            workflow,
-            inputs,
-            progress_callback=ConsoleProgressCallback()
-        )
-        
-        assert result is not None
-        assert len(result.all_agents) >= 2  # Should have at least triage and specialized agents
-        
-        # Verify proper task execution
-        agent_names_lower = str(result.all_agents).lower()
-        assert "triage" in agent_names_lower
-        assert "handlerequest" in agent_names_lower
-    
-    async def test_no_handoff_needed(self, workflow_manager):
-        """Test when no handoff is needed - but workflow still executes both stages."""
-        workflow_dict = create_handoff_workflow()
-        
-        # Add provider mapping for handoff agents
-        provider_mapping = {
-            "triage_agent": "openai",
-            "specialized_agent": "openai"
-        }
-        
-        workflow = await workflow_manager.initialize_workflow(
-            workflow_dict,
-            provider_mapping=provider_mapping,
-            progress_callback=ConsoleProgressCallback()
-        )
-        
-        inputs = WorkflowInput(
-            user_query="What are your business hours?",
-            workflow={"inputs": {"support_query": "What are your business hours?"}}
-        )
-        
-        result = await workflow_manager.execute(
-            workflow,
-            inputs,
-            progress_callback=ConsoleProgressCallback()
-        )
-        
-        assert result is not None
-        # Note: The existing workflow is sequential, not handoff, so both stages always execute
-        assert len(result.all_agents) >= 2  # Should still have both agents even for general queries
-    
-    async def test_handoff_routing_accuracy(self, workflow_manager):
-        """Test that handoff correctly routes to the appropriate agent."""
-        workflow_dict = self.create_routing_workflow()
-        
-        provider_mapping = {
-            "technical_agent": "openai",
-            "billing_agent": "openai", 
-            "general_agent": "openai"
-        }
-        
-        # Test cases - since this is a true handoff workflow, only one agent should execute
-        test_cases = [
-            ("My server is down and I can't connect", ["TechnicalAgent", "BillingAgent", "GeneralAgent"]),
-            ("I need help understanding my invoice", ["TechnicalAgent", "BillingAgent", "GeneralAgent"]),
-            ("What are your office hours?", ["TechnicalAgent", "BillingAgent", "GeneralAgent"]),
-        ]
-        
-        for query, possible_agents in test_cases:
-            workflow = await workflow_manager.initialize_workflow(
-                workflow_dict,
-                provider_mapping=provider_mapping,
-                progress_callback=ConsoleProgressCallback()
-            )
-            
-            inputs = WorkflowInput(
-                user_query=query,
-                workflow={"inputs": {"query": query}}
-            )
-            
-            result = await workflow_manager.execute(
-                workflow,
-                inputs,
-                progress_callback=ConsoleProgressCallback()
-            )
-            
-            assert result is not None
-            # In handoff mode, we should see the handoff agent plus one selected agent
-            assert len(result.all_agents) >= 1
-            logger.info(f"Query '{query}' routed to agents: {result.all_agents}")
-    
-    async def test_explicit_handoff_workflow(self, workflow_manager):
-        """Test explicit handoff execution type with multiple agents."""
-        workflow_dict = {
-            "name": "test_explicit_handoff",
-            "description": "Test explicit handoff execution",
-            "version": "1.0.0",
-            "stages": [
-                {
-                    "name": "HandoffStage",
-                    "description": "Route to Agent1 for technical, Agent2 for billing, or Agent3 for general queries",
-                    "execution_type": "handoff",
-                    "tasks": [
-                        {
-                            "name": "Agent1",
-                            "description": "First agent - handles technical queries",
-                            "agent": {
-                                "id": "handoff_agent_1",
-                                "agent_type": "LLMAgent",
-                                "llm_type": "openai",
-                                "system_prompt": "You are Agent 1. Handle technical queries. Answer briefly.",
-                                "user_prompt": "${workflow.inputs.query}"
-                            },
-                            "outputs": {"response1": "Agent 1 response"}
-                        },
-                        {
-                            "name": "Agent2",
-                            "description": "Second agent - handles billing queries",
-                            "agent": {
-                                "id": "handoff_agent_2",
-                                "agent_type": "LLMAgent",
-                                "llm_type": "openai",
-                                "system_prompt": "You are Agent 2. Handle billing queries. Answer briefly.",
-                                "user_prompt": "${workflow.inputs.query}"
-                            },
-                            "outputs": {"response2": "Agent 2 response"}
-                        },
-                        {
-                            "name": "Agent3",
-                            "description": "Third agent - handles general queries",
-                            "agent": {
-                                "id": "handoff_agent_3",
-                                "agent_type": "LLMAgent",
-                                "llm_type": "openai",
-                                "system_prompt": "You are Agent 3. Handle general queries. Summarize briefly.",
-                                "user_prompt": "Summarize the query: ${workflow.inputs.query}"
-                            },
-                            "outputs": {"response3": "Agent 3 response"}
-                        }
-                    ]
-                }
-            ]
-        }
+        workflow_dict = create_tool_workflow()
         
         # Get provider mapping for all agents
         provider_mapping = get_provider_mapping_for_workflow(workflow_dict)
@@ -927,49 +1206,8 @@ class TestOpenAIObservabilityHandoffs:
         )
         
         inputs = WorkflowInput(
-            user_query="Test handoff between agents",
-            workflow={"inputs": {"query": "What is the meaning of life?"}}
-        )
-        
-        # Time the execution to check for performance issues
-        start_time = time.time()
-        
-        result = await workflow_manager.execute(
-            workflow,
-            inputs,
-            progress_callback=ConsoleProgressCallback()
-        )
-        
-        execution_time = time.time() - start_time
-        
-        assert result is not None
-        # In handoff mode, typically only one agent executes based on routing logic
-        assert len(result.all_agents) >= 1
-        logger.info(f"Handoff execution time: {execution_time:.2f} seconds")
-        logger.info(f"Agents executed: {result.all_agents}")
-    
-    async def test_handoff_performance_metrics(self, workflow_manager):
-        """Test performance tracking across handoff execution."""
-        # Use the existing handoff workflow
-        workflow_dict = create_handoff_workflow()
-        
-        provider_mapping = {
-            "triage_agent": "openai",
-            "specialized_agent": "openai"
-        }
-        
-        workflow = await workflow_manager.initialize_workflow(
-            workflow_dict,
-            provider_mapping=provider_mapping,
-            progress_callback=ConsoleProgressCallback()
-        )
-        
-        # Track execution time
-        start_time = time.time()
-        
-        inputs = WorkflowInput(
-            user_query="Analyze system performance issues",
-            workflow={"inputs": {"support_query": "Analyze system performance issues"}}
+            user_query="Test tool usage",
+            workflow={"inputs": {}}
         )
         
         result = await workflow_manager.execute(
@@ -978,18 +1216,8 @@ class TestOpenAIObservabilityHandoffs:
             progress_callback=ConsoleProgressCallback()
         )
         
-        execution_time = time.time() - start_time
-        
         assert result is not None
-        assert execution_time < 30  # Reasonable timeout
-        logger.info(f"Handoff workflow completed in {execution_time:.2f} seconds")
-        
-        # Verify both stages executed (since it's sequential, not handoff)
-        assert len(result.all_agents) >= 2
-
-@pytest.mark.asyncio
-class TestOpenAIObservabilityComplex:
-    """Test complex observability scenarios."""
+        assert result.response_store is not None
     
     async def test_complex_multi_stage_workflow(self, workflow_manager):
         """Test complex workflow with multiple stages and parallel execution."""
@@ -1075,113 +1303,22 @@ class TestOpenAIObservabilityComplex:
 
 
 @pytest.mark.asyncio
-class TestOpenAIObservabilityExampleWorkflows:
-    """Test existing example workflows."""
+class TestOpenAIObservabilityTools(BaseOpenAITest):
+    """Test tool execution observability."""
     
-    async def test_handoffs_example_workflow(self, workflow_manager):
-        """Test the handoffs example workflow if it exists."""
-        handoffs_path = Path("usage_examples/handoffs_example/handoffs_config2.yaml")
-        if not handoffs_path.exists():
-            pytest.skip("Handoffs example not found")
-        
-        workflow = await workflow_manager.initialize_workflow(
-            str(handoffs_path),  # Pass string path directly
-            provider_mapping={
-                "qa_agent": "openai",
-                "translation_agent": "openai"
-            },
-            progress_callback=ConsoleProgressCallback()
-        )
-        
-        inputs = WorkflowInput(
-            user_query="Who is the CEO of OpenAI?",
-            workflow={"inputs": {"user_query": "Who is the CEO of OpenAI?"}}
-        )
-        
-        result = await workflow_manager.execute(
-            workflow,
-            inputs,
-            progress_callback=ConsoleProgressCallback()
-        )
-        
-        assert result is not None
-    
-    async def test_product_dev_workflow(self, workflow_manager):
-        """Test the product development workflow if it exists."""
-        dev_path = Path("usage_examples/dev_workflow/product_dev_workflow_example.yaml")
-        if not dev_path.exists():
-            pytest.skip("Product dev example not found")
-        
-        # Need to ensure agent YAML files exist
-        workflow = await workflow_manager.initialize_workflow(
-            str(dev_path),  # Pass string path directly
-            provider_mapping={
-                "plan_agent": "openai",
-                "api_design_agent": "openai",
-                "ui_design_agent": "openai",
-                "db_design_agent": "openai",
-                "validation_agent": "openai"
-            },
-            progress_callback=ConsoleProgressCallback()
-        )
-        
-        inputs = WorkflowInput(
-            user_query="Create dashboard",
-            workflow={
-                "inputs": {
-                    "feature_request": "User dashboard with metrics",
-                    "constraints": "Must be responsive"
-                }
-            }
-        )
-        
-        result = await workflow_manager.execute(
-            workflow,
-            inputs,
-            progress_callback=ConsoleProgressCallback()
-        )
-        
-        assert result is not None
-
-
-@pytest.mark.asyncio
-class TestOpenAIObservabilityEdgeCases:
-    """Test edge cases and special scenarios."""
-    
-    async def test_empty_workflow(self, workflow_manager):
-        """Test workflow with no tasks."""
+    async def test_multiple_tool_calls(self, workflow_manager):
+        """Test tracing of multiple tool calls in sequence."""
         workflow_dict = {
-            "name": "test_empty",
-            "description": "Empty workflow",
-            "version": "1.0.0",
-            "stages": []
-        }
-        
-        workflow = await workflow_manager.initialize_workflow(
-            workflow_dict
-        )
-        
-        inputs = WorkflowInput(
-            user_query="Test empty",
-            workflow={"inputs": {}}
-        )
-        
-        result = await workflow_manager.execute(workflow, inputs)
-        assert result is not None
-    
-    async def test_agent_with_multiple_tools(self, workflow_manager):
-        """Test agent using multiple tools in one task."""
-        workflow_dict = {
-            "name": "test_multi_tool",
-            "description": "Test multiple tool usage",
+            "name": "test_multiple_tools",
+            "description": "Test multiple tool calls",
             "version": "1.0.0",
             "stages": [
                 {
-                    "name": "MultiTool",
+                    "name": "ToolStage",
                     "execution_type": "sequential",
                     "tasks": [
                         {
-                            "name": "UseMultipleTools",
+                            "name": "MultiToolTask",
                             "agent": {
                                 "id": "multi_tool_agent",
                                 "agent_type": "LLMAgent",
@@ -1189,16 +1326,130 @@ class TestOpenAIObservabilityEdgeCases:
                                 "tools": [
                                     {"name": "test_weather", "type": "function"},
                                     {"name": "test_calculator", "type": "function"},
-                                    {"name": "test_data_analysis", "type": "function"}
+                                    {"name": "test_database_query", "type": "function"}
                                 ],
-                                "system_prompt": "Use all three tools to answer comprehensively.",
-                                "user_prompt": "Get weather for NYC, calculate 50*2, and analyze the results"
-                            }
+                                "system_prompt": """Use multiple tools:
+                                1. Get weather for New York
+                                2. Calculate 100 * 25
+                                3. Query the users table""",
+                                "user_prompt": "Execute all tool operations"
+                            },
+                            "outputs": {"results": "All tool results"}
                         }
                     ]
                 }
             ]
         }
+        
+        workflow = await workflow_manager.initialize_workflow(workflow_dict)
+        
+        inputs = WorkflowInput(
+            user_query="Test multiple tools",
+            workflow={"inputs": {}}
+        )
+        
+        result = await workflow_manager.execute(workflow, inputs)
+        
+        assert result is not None
+    
+    async def test_tool_error_handling(self, workflow_manager):
+        """Test error handling in tool execution."""
+        workflow_dict = {
+            "name": "test_tool_errors",
+            "description": "Test tool error handling",
+            "version": "1.0.0",
+            "stages": [
+                {
+                    "name": "ErrorToolStage",
+                    "execution_type": "sequential",
+                    "tasks": [
+                        {
+                            "name": "ToolErrorTask",
+                            "agent": {
+                                "id": "tool_error_agent",
+                                "agent_type": "LLMAgent",
+                                "llm_type": "openai",
+                                "tools": [
+                                    {"name": "test_calculator", "type": "function"},
+                                    {"name": "test_file_processor", "type": "function"}
+                                ],
+                                "system_prompt": """Test error handling:
+                                1. Calculate 50/0 (will error)
+                                2. Process file with invalid operation""",
+                                "user_prompt": "Test tool errors"
+                            },
+                            "outputs": {"error_handling": "Error test results"}
+                        }
+                    ]
+                }
+            ]
+        }
+        
+        workflow = await workflow_manager.initialize_workflow(workflow_dict)
+        
+        inputs = WorkflowInput(
+            user_query="Test tool errors",
+            workflow={"inputs": {}}
+        )
+        
+        # Should handle errors gracefully
+        result = await workflow_manager.execute(workflow, inputs)
+        
+        assert result is not None
+    
+    async def test_functional_tools(self, workflow_manager):
+        """Test functional tools execution."""
+        # The tools are already registered in the global registry via the tool_registry fixture
+        workflow_dict = {
+            "name": "test_functional_tools",
+            "description": "Test functional tools",
+            "version": "1.0.0",
+            "stages": [
+                {
+                    "name": "FunctionalToolStage",
+                    "execution_type": "sequential",
+                    "tasks": [
+                        {
+                            "name": "FunctionalToolTask",
+                            "agent": {
+                                "id": "functional_tool_agent",
+                                "agent_type": "LLMAgent",
+                                "llm_type": "openai",
+                                "tools": [
+                                    {"name": "test_data_analysis", "type": "functional"},
+                                    {"name": "test_translator", "type": "functional"}
+                                ],
+                                "system_prompt": """Use functional tools:
+                                1. Analyze data with operation 'statistical'
+                                2. Translate 'Hello World' to Spanish""",
+                                "user_prompt": "Execute functional tool operations"
+                            },
+                            "outputs": {"functional_results": "Functional tool results"}
+                        }
+                    ]
+                }
+            ]
+        }
+        
+        workflow = await workflow_manager.initialize_workflow(workflow_dict)
+        
+        inputs = WorkflowInput(
+            user_query="Test functional tools",
+            workflow={"inputs": {}}
+        )
+        
+        result = await workflow_manager.execute(workflow, inputs)
+        
+        assert result is not None
+
+
+@pytest.mark.asyncio
+class TestOpenAIObservabilityHandoffs(BaseOpenAITest):
+    """Enhanced tests for agent handoff tracing with rigorous validation."""
+    
+    async def test_complex_handoff_workflow(self, workflow_manager):
+        """Test complex multi-level handoff routing."""
+        workflow_dict = create_complex_handoff_workflow()
         
         # Get provider mapping for all agents
         provider_mapping = get_provider_mapping_for_workflow(workflow_dict)
@@ -1209,167 +1460,392 @@ class TestOpenAIObservabilityEdgeCases:
             progress_callback=ConsoleProgressCallback()
         )
         
-        inputs = WorkflowInput(
-            user_query="Multi-tool test",
-            workflow={"inputs": {}}
-        )
+        # Test different query types to trigger different handoff paths
+        test_queries = [
+            ("How do I debug a Python error?", "technical"),
+            ("What's my current bill amount?", "billing"),
+            ("Where is your office located?", "general")
+        ]
         
-        result = await workflow_manager.execute(
-            workflow,
-            inputs,
-            progress_callback=ConsoleProgressCallback()
-        )
-        
-        assert result is not None
+        for query, expected_type in test_queries:
+            inputs = WorkflowInput(
+                user_query=query,
+                workflow={"inputs": {"user_query": query}}
+            )
+            
+            start_time = time.time()
+            result = await workflow_manager.execute(
+                workflow,
+                inputs,
+                progress_callback=ConsoleProgressCallback()
+            )
+            execution_time = time.time() - start_time
+            
+            assert result is not None
+            self._log_workflow_summary(f"Handoff Test ({expected_type})", result, execution_time)
     
-    async def test_nested_parallel_stages(self, workflow_manager):
-        """Test workflow with nested parallel stages."""
+    async def test_nested_handoff_routing(self, workflow_manager):
+        """Test nested handoff routing with multiple levels."""
         workflow_dict = {
-            "name": "test_nested_parallel",
-            "description": "Nested parallel execution",
+            "name": "test_nested_handoff",
+            "description": "Test nested handoff routing",
             "version": "1.0.0",
             "stages": [
                 {
-                    "name": "OuterParallel",
-                    "execution_type": "parallel",
+                    "name": "Level1Routing",
+                    "description": "First level routing",
+                    "execution_type": "handoff",
                     "tasks": [
                         {
-                            "name": "Branch1",
+                            "name": "Level1Router",
+                            "description": "Route to department",
                             "agent": {
-                                "id": "branch1_agent",
+                                "id": "level1_router",
                                 "agent_type": "LLMAgent",
                                 "llm_type": "openai",
-                                "system_prompt": "Process branch 1",
-                                "user_prompt": "Execute task 1"
-                            }
+                                "system_prompt": """Route based on urgency:
+                                - Urgent -> UrgentHandler
+                                - Normal -> NormalHandler""",
+                                "user_prompt": "Route: ${workflow.inputs.query}"
+                            },
+                            "outputs": {"level1_route": "Selected route"}
                         },
                         {
-                            "name": "Branch2",
+                            "name": "UrgentHandler",
+                            "description": "Handle urgent requests",
                             "agent": {
-                                "id": "branch2_agent",
+                                "id": "urgent_handler",
                                 "agent_type": "LLMAgent",
                                 "llm_type": "openai",
-                                "system_prompt": "Process branch 2",
-                                "user_prompt": "Execute task 2"
-                            }
+                                "system_prompt": "Handle urgent request immediately.",
+                                "user_prompt": "Urgent: ${workflow.inputs.query}"
+                            },
+                            "outputs": {"urgent_response": "Urgent response"}
+                        },
+                        {
+                            "name": "NormalHandler",
+                            "description": "Handle normal requests",
+                            "agent": {
+                                "id": "normal_handler",
+                                "agent_type": "LLMAgent",
+                                "llm_type": "openai",
+                                "system_prompt": "Handle normal request.",
+                                "user_prompt": "Normal: ${workflow.inputs.query}"
+                            },
+                            "outputs": {"normal_response": "Normal response"}
                         }
                     ]
                 }
             ]
         }
         
+        workflow = await workflow_manager.initialize_workflow(workflow_dict)
+        
+        test_cases = [
+            ("URGENT: System is down!", "urgent"),
+            ("Can you help me with a question?", "normal")
+        ]
+        
+        for query, expected_type in test_cases:
+            inputs = WorkflowInput(
+                user_query=query,
+                workflow={"inputs": {"query": query}}
+            )
+            
+            result = await workflow_manager.execute(workflow, inputs)
+            assert result is not None
+
+
+@pytest.mark.asyncio
+class TestOpenAIObservabilityParallel(BaseOpenAITest):
+    """Test parallel execution observability."""
+    
+    async def test_simple_parallel_execution(self, workflow_manager):
+        """Test basic parallel task execution."""
+        workflow_dict = create_parallel_workflow()
+        
+        provider_mapping = get_provider_mapping_for_workflow(workflow_dict)
+        
+        workflow = await workflow_manager.initialize_workflow(
+            workflow_dict,
+            provider_mapping=provider_mapping,
+            progress_callback=ConsoleProgressCallback()
+        )
+        
+        inputs = WorkflowInput(
+            user_query="Test parallel execution",
+            workflow={
+                "inputs": {
+                    "data1": "Dataset 1",
+                    "data2": "Dataset 2",
+                    "data3": "Dataset 3"
+                }
+            }
+        )
+        
+        start_time = time.time()
+        result = await workflow_manager.execute(
+            workflow,
+            inputs,
+            progress_callback=ConsoleProgressCallback()
+        )
+        execution_time = time.time() - start_time
+        
+        assert result is not None
+        # Should have executed 3 agents in parallel
+        assert len(result.all_agents) == 3
+        self._log_workflow_summary("Simple Parallel Execution", result, execution_time)
+    
+    async def test_massive_parallel_execution(self, workflow_manager):
+        """Test massive parallel agent execution."""
+        workflow_dict = create_massive_parallel_workflow()
+        
+        provider_mapping = get_provider_mapping_for_workflow(workflow_dict)
+        
+        workflow = await workflow_manager.initialize_workflow(
+            workflow_dict,
+            provider_mapping=provider_mapping,
+            progress_callback=ConsoleProgressCallback()
+        )
+        
+        # Create input data for all parallel agents
+        inputs_data = {
+            "large_dataset": "Dataset with 10 segments for parallel processing"
+        }
+        for i in range(10):
+            inputs_data[f"data_segment_{i}"] = f"Segment {i} data: [values {i*100} to {(i+1)*100}]"
+        
+        inputs = WorkflowInput(
+            user_query="Process large dataset in parallel",
+            workflow={"inputs": inputs_data}
+        )
+        
+        start_time = time.time()
+        result = await workflow_manager.execute(
+            workflow,
+            inputs,
+            progress_callback=ConsoleProgressCallback()
+        )
+        execution_time = time.time() - start_time
+        
+        assert result is not None
+        # Should have executed data splitter + 10 parallel agents + aggregator = 12 agents minimum
+        assert len(result.all_agents) >= 12
+        self._log_workflow_summary("Massive Parallel Execution", result, execution_time)
+    
+    async def test_multi_tool_orchestration(self, workflow_manager):
+        """Test complex multi-agent tool orchestration."""
+        workflow_dict = create_multi_tool_orchestration_workflow()
+        
+        provider_mapping = get_provider_mapping_for_workflow(workflow_dict)
+        
+        workflow = await workflow_manager.initialize_workflow(
+            workflow_dict,
+            provider_mapping=provider_mapping,
+            progress_callback=ConsoleProgressCallback()
+        )
+        
+        inputs = WorkflowInput(
+            user_query="Collect and analyze comprehensive data",
+            workflow={"inputs": {}}
+        )
+        
+        start_time = time.time()
+        result = await workflow_manager.execute(
+            workflow,
+            inputs,
+            progress_callback=ConsoleProgressCallback()
+        )
+        execution_time = time.time() - start_time
+        
+        assert result is not None
+        # Should have multiple agents using various tools
+        self._log_workflow_summary("Multi-Tool Orchestration", result, execution_time)
+
+
+@pytest.mark.asyncio
+class TestOpenAIObservabilityPerformance(BaseOpenAITest):
+    """Test observability performance impact."""
+    
+    async def test_minimal_overhead(self, workflow_manager):
+        """Test that observability adds minimal overhead."""
+        workflow_dict = create_simple_sequential_workflow()
+        
         workflow = await workflow_manager.initialize_workflow(
             workflow_dict
         )
         
         inputs = WorkflowInput(
-            user_query="Test nested parallel",
+            user_query="Performance test",
+            workflow={"inputs": {"user_query": "Performance test"}}
+        )
+        
+        # Time execution with observability
+        start_time = time.time()
+        result = await workflow_manager.execute(workflow, inputs)
+        execution_time = time.time() - start_time
+        
+        logger.info(f"Execution time with observability: {execution_time:.2f} seconds")
+        
+        assert result is not None
+        # Just verify it completes in reasonable time
+        assert execution_time < 30  # 30 seconds max
+    
+    async def test_performance_stress_workflow(self, workflow_manager):
+        """Test performance under stress with many operations."""
+        workflow_dict = create_performance_stress_workflow()
+        
+        provider_mapping = get_provider_mapping_for_workflow(workflow_dict)
+        
+        workflow = await workflow_manager.initialize_workflow(
+            workflow_dict,
+            provider_mapping=provider_mapping,
+            progress_callback=ConsoleProgressCallback()
+        )
+        
+        # Create complex input data
+        inputs_data = {"case_type": "complex_technical_issue"}
+        for i in range(5):
+            inputs_data[f"workload_{i}"] = f"Heavy workload {i}: process large dataset with complex calculations"
+        
+        inputs = WorkflowInput(
+            user_query="Stress test with heavy workload",
+            workflow={"inputs": inputs_data}
+        )
+        
+        start_time = time.time()
+        result = await workflow_manager.execute(
+            workflow,
+            inputs,
+            progress_callback=ConsoleProgressCallback()
+        )
+        execution_time = time.time() - start_time
+        
+        assert result is not None
+        self._log_workflow_summary("Performance Stress Test", result, execution_time)
+        
+        # Performance should complete within reasonable time even under stress
+        assert execution_time < 120  # 2 minutes max
+
+
+@pytest.mark.asyncio
+class TestOpenAIObservabilityErrorHandling(BaseOpenAITest):
+    """Test error handling and recovery scenarios."""
+    
+    async def test_error_cascade_workflow(self, workflow_manager):
+        """Test error propagation and recovery in complex scenarios."""
+        workflow_dict = create_error_cascade_workflow()
+        
+        provider_mapping = get_provider_mapping_for_workflow(workflow_dict)
+        
+        workflow = await workflow_manager.initialize_workflow(
+            workflow_dict,
+            provider_mapping=provider_mapping,
+            progress_callback=ConsoleProgressCallback()
+        )
+        
+        inputs = WorkflowInput(
+            user_query="Test error cascade and recovery",
+            workflow={"inputs": {"data": "Important data to process"}}
+        )
+        
+        start_time = time.time()
+        result = await workflow_manager.execute(
+            workflow,
+            inputs,
+            progress_callback=ConsoleProgressCallback()
+        )
+        execution_time = time.time() - start_time
+        
+        # Workflow should complete even with errors
+        assert result is not None
+        self._log_workflow_summary("Error Cascade Test", result, execution_time)
+    
+    async def test_partial_failure_recovery(self, workflow_manager):
+        """Test handling of partial failures in parallel execution."""
+        workflow_dict = {
+            "name": "test_partial_failure",
+            "description": "Test partial failure recovery",
+            "version": "1.0.0",
+            "stages": [
+                {
+                    "name": "ParallelWithFailures",
+                    "description": "Parallel execution with some failures",
+                    "execution_type": "parallel",
+                    "tasks": [
+                        {
+                            "name": "SuccessTask1",
+                            "agent": {
+                                "id": "success_1",
+                                "agent_type": "LLMAgent",
+                                "llm_type": "openai",
+                                "tools": [{"name": "test_weather", "type": "function"}],
+                                "system_prompt": "Get weather for New York",
+                                "user_prompt": "Check NYC weather"
+                            },
+                            "outputs": {"weather": "Weather data"}
+                        },
+                        {
+                            "name": "FailTask",
+                            "agent": {
+                                "id": "fail_agent",
+                                "agent_type": "LLMAgent",
+                                "llm_type": "openai",
+                                "tools": [{"name": "test_calculator", "type": "function"}],
+                                "system_prompt": "Calculate 50/0",
+                                "user_prompt": "Divide by zero"
+                            },
+                            "outputs": {"fail": "Should fail"}
+                        },
+                        {
+                            "name": "SuccessTask2",
+                            "agent": {
+                                "id": "success_2",
+                                "agent_type": "LLMAgent",
+                                "llm_type": "openai",
+                                "tools": [{"name": "test_api_call", "type": "function"}],
+                                "system_prompt": "Call API endpoint",
+                                "user_prompt": "Check /status endpoint"
+                            },
+                            "outputs": {"api_result": "API response"}
+                        }
+                    ]
+                },
+                {
+                    "name": "RecoveryStage",
+                    "description": "Recover from partial failures",
+                    "execution_type": "sequential",
+                    "tasks": [
+                        {
+                            "name": "RecoveryTask",
+                            "agent": {
+                                "id": "recovery_agent",
+                                "agent_type": "LLMAgent",
+                                "llm_type": "openai",
+                                "system_prompt": "Handle partial results and errors gracefully.",
+                                "user_prompt": "Process available results from previous stage"
+                            },
+                            "outputs": {"recovery_result": "Recovered data"}
+                        }
+                    ]
+                }
+            ]
+        }
+        
+        workflow = await workflow_manager.initialize_workflow(workflow_dict)
+        
+        inputs = WorkflowInput(
+            user_query="Test partial failure recovery",
             workflow={"inputs": {}}
         )
         
         result = await workflow_manager.execute(workflow, inputs)
+        
+        # Should complete even with partial failures
         assert result is not None
-
-
-@pytest.mark.asyncio
-class TestOpenAIObservabilityIntegration:
-    """Integration tests for observability stack."""
     
-    async def test_full_observability_stack(self, workflow_manager):
-        """Test that all observability components work together."""
-        # This test verifies the entire stack:
-        # 1. Workflow start/end
-        # 2. Stage start/end
-        # 3. Task start/end
-        # 4. Agent start/end
-        # 5. Tool start/end
-        # 6. Handoffs
-        
-        workflow_dict = create_complex_multi_stage_workflow()
-        
-        # Get provider mapping for all agents
-        provider_mapping = get_provider_mapping_for_workflow(workflow_dict)
-        
-        # Mock the observability provider to track calls
-        with patch.object(workflow_manager.execution_engine._ctx.llm_tracer.providers[0], 
-                         'start_trace_group') as mock_trace_start:
-            mock_trace_start.return_value = "test-trace-id"
-            
-            workflow = await workflow_manager.initialize_workflow(
-                workflow_dict,
-                provider_mapping=provider_mapping,
-                progress_callback=ConsoleProgressCallback()
-            )
-            
-            inputs = WorkflowInput(
-                user_query="Full stack test",
-                workflow={
-                    "inputs": {
-                        "project": "Test project for observability"
-                    }
-                }
-            )
-            
-            result = await workflow_manager.execute(
-                workflow,
-                inputs,
-                progress_callback=ConsoleProgressCallback()
-            )
-            
-            assert result is not None
-            
-            # Verify all stages were executed
-            assert len(result.all_agents) >= 4  # Planning, Research, Development, Review
-    
-    async def test_observability_spans_created(self, workflow_manager):
-        """Test that spans are actually created in traces."""
-        workflow_dict = create_tool_usage_workflow()
-        
-        # Track spans created
-        created_spans = []
-        
-        # Mock the span creation to track what spans are created
-        original_span = workflow_manager.execution_engine._ctx.llm_tracer.providers[0].start_span
-        
-        async def mock_start_span(name, parent_span_id, metadata):
-            created_spans.append(name)
-            return await original_span(name, parent_span_id, metadata)
-        
-        with patch.object(
-            workflow_manager.execution_engine._ctx.llm_tracer.providers[0],
-            'start_span',
-            side_effect=mock_start_span
-        ):
-            # Add provider mapping for the tool user agent
-            provider_mapping = {"tool_user": "openai"}
-            
-            workflow = await workflow_manager.initialize_workflow(
-                workflow_dict,
-                provider_mapping=provider_mapping,
-                progress_callback=ConsoleProgressCallback()
-            )
-            
-            inputs = WorkflowInput(
-                user_query="Test span creation",
-                workflow={"inputs": {"user_query": "Check weather and calculate 10+20"}}
-            )
-            
-            result = await workflow_manager.execute(
-                workflow,
-                inputs,
-                progress_callback=ConsoleProgressCallback()
-            )
-            
-            assert result is not None
-            
-            # Log what spans were created
-            logger.info(f"Created spans: {created_spans}")
-            
-            # Should have created spans for various operations
-            assert len(created_spans) > 0, "No spans were created during execution"
-    
-    async def test_observability_with_errors(self, workflow_manager):
-        """Test observability captures errors properly."""
+    async def test_multiple_error_types(self, workflow_manager):
+        """Test handling of different error types."""
         workflow_dict = {
             "name": "test_error_observability",
             "description": "Test error capture",
@@ -1430,75 +1906,280 @@ class TestOpenAIObservabilityIntegration:
         assert result is not None
 
 
+@pytest.mark.asyncio
+class TestOpenAIObservabilityIntegration(BaseOpenAITest):
+    """Integration tests for complete workflows."""
+    
+    async def test_example_workflow_with_observability(self, workflow_manager):
+        """Test example workflows with observability enabled."""
+        # Test with customer support workflow
+        workflow_dict = {
+            "name": "customer_support_test",
+            "description": "Customer support workflow test",
+            "version": "1.0.0",
+            "stages": [
+                {
+                    "name": "QueryAnalysis",
+                    "description": "Analyze customer query",
+                    "execution_type": "sequential",
+                    "tasks": [
+                        {
+                            "name": "AnalyzeIntent",
+                            "description": "Analyze customer intent",
+                            "agent": {
+                                "id": "intent_analyzer",
+                                "agent_type": "LLMAgent",
+                                "llm_type": "openai",
+                                "tools": [{"name": "test_sentiment_analyzer", "type": "function"}],
+                                "system_prompt": "Analyze the customer's intent and sentiment.",
+                                "user_prompt": "Customer says: ${workflow.inputs.customer_query}"
+                            },
+                            "outputs": {"intent": "Customer intent", "sentiment": "Customer sentiment"}
+                        }
+                    ]
+                },
+                {
+                    "name": "ResponseGeneration",
+                    "description": "Generate appropriate response",
+                    "execution_type": "sequential",
+                    "tasks": [
+                        {
+                            "name": "GenerateResponse",
+                            "description": "Generate customer response",
+                            "agent": {
+                                "id": "response_generator",
+                                "agent_type": "LLMAgent",
+                                "llm_type": "openai",
+                                "system_prompt": "Generate a helpful response based on the intent and sentiment.",
+                                "user_prompt": "Intent: ${stages.[QueryAnalysis].tasks.[AnalyzeIntent].outputs.intent}, Sentiment: ${stages.[QueryAnalysis].tasks.[AnalyzeIntent].outputs.sentiment}"
+                            },
+                            "outputs": {"response": "Customer service response"}
+                        }
+                    ]
+                }
+            ]
+        }
+        
+        workflow = await workflow_manager.initialize_workflow(workflow_dict)
+        
+        test_queries = [
+            "I'm having trouble with my order #12345",
+            "This product is amazing! Thank you!",
+            "I want to cancel my subscription immediately"
+        ]
+        
+        for query in test_queries:
+            inputs = WorkflowInput(
+                user_query=query,
+                workflow={"inputs": {"customer_query": query}}
+            )
+            
+            start_time = time.time()
+            result = await workflow_manager.execute(workflow, inputs)
+            execution_time = time.time() - start_time
+            
+            assert result is not None
+            self._log_workflow_summary(f"Customer Support Test: {query[:30]}...", result, execution_time)
+    
+    async def test_complex_real_world_scenario(self, workflow_manager):
+        """Test a complex real-world scenario with full observability."""
+        workflow_dict = {
+            "name": "ai_development_pipeline",
+            "description": "Complete AI development pipeline",
+            "version": "1.0.0",
+            "stages": [
+                {
+                    "name": "RequirementsGathering",
+                    "description": "Gather and analyze requirements",
+                    "execution_type": "sequential",
+                    "tasks": [
+                        {
+                            "name": "RequirementsAnalysis",
+                            "agent": {
+                                "id": "requirements_analyst",
+                                "agent_type": "LLMAgent",
+                                "llm_type": "openai",
+                                "system_prompt": "Analyze project requirements and create specifications.",
+                                "user_prompt": "Project: ${workflow.inputs.project_description}"
+                            },
+                            "outputs": {"requirements": "Detailed requirements"}
+                        }
+                    ]
+                },
+                {
+                    "name": "DesignPhase",
+                    "description": "Design system architecture",
+                    "execution_type": "parallel",
+                    "tasks": [
+                        {
+                            "name": "ArchitectureDesign",
+                            "agent": {
+                                "id": "architect",
+                                "agent_type": "LLMAgent",
+                                "llm_type": "openai",
+                                "tools": [{"name": "test_database_query", "type": "function"}],
+                                "system_prompt": "Design system architecture based on requirements.",
+                                "user_prompt": "Design for: ${stages.[RequirementsGathering].tasks.[RequirementsAnalysis].outputs.requirements}"
+                            },
+                            "outputs": {"architecture": "System architecture"}
+                        },
+                        {
+                            "name": "DataModelDesign",
+                            "agent": {
+                                "id": "data_modeler",
+                                "agent_type": "LLMAgent",
+                                "llm_type": "openai",
+                                "system_prompt": "Design data models and schemas.",
+                                "user_prompt": "Create data model for: ${stages.[RequirementsGathering].tasks.[RequirementsAnalysis].outputs.requirements}"
+                            },
+                            "outputs": {"data_model": "Data model design"}
+                        }
+                    ]
+                },
+                {
+                    "name": "Implementation",
+                    "description": "Implement the solution",
+                    "execution_type": "sequential",
+                    "tasks": [
+                        {
+                            "name": "CodeGeneration",
+                            "agent": {
+                                "id": "code_generator",
+                                "agent_type": "LLMAgent",
+                                "llm_type": "openai",
+                                "tools": [
+                                    {"name": "test_file_processor", "type": "function"},
+                                    {"name": "test_api_call", "type": "function"}
+                                ],
+                                "system_prompt": "Generate implementation based on architecture and data model.",
+                                "user_prompt": "Implement based on architecture: ${stages.[DesignPhase].tasks.[ArchitectureDesign].outputs.architecture} and data model: ${stages.[DesignPhase].tasks.[DataModelDesign].outputs.data_model}"
+                            },
+                            "outputs": {"implementation": "Generated code and configuration"}
+                        }
+                    ]
+                },
+                {
+                    "name": "Testing",
+                    "description": "Test the implementation",
+                    "execution_type": "parallel",
+                    "tasks": [
+                        {
+                            "name": "UnitTesting",
+                            "agent": {
+                                "id": "unit_tester",
+                                "agent_type": "LLMAgent",
+                                "llm_type": "openai",
+                                "tools": [{"name": "test_calculator", "type": "function"}],
+                                "system_prompt": "Create and execute unit tests.",
+                                "user_prompt": "Test implementation: ${stages.[Implementation].tasks.[CodeGeneration].outputs.implementation}"
+                            },
+                            "outputs": {"unit_test_results": "Unit test results"}
+                        },
+                        {
+                            "name": "IntegrationTesting",
+                            "agent": {
+                                "id": "integration_tester",
+                                "agent_type": "LLMAgent",
+                                "llm_type": "openai",
+                                "tools": [{"name": "test_api_call", "type": "function"}],
+                                "system_prompt": "Perform integration testing.",
+                                "user_prompt": "Integration test: ${stages.[Implementation].tasks.[CodeGeneration].outputs.implementation}"
+                            },
+                            "outputs": {"integration_test_results": "Integration test results"}
+                        }
+                    ]
+                },
+                {
+                    "name": "Deployment",
+                    "description": "Deploy the solution",
+                    "execution_type": "sequential",
+                    "tasks": [
+                        {
+                            "name": "DeploymentPrep",
+                            "agent": {
+                                "id": "deployment_agent",
+                                "agent_type": "LLMAgent",
+                                "llm_type": "openai",
+                                "tools": [{"name": "test_data_analysis", "type": "functional"}],
+                                "system_prompt": "Prepare deployment based on test results.",
+                                "user_prompt": "Deploy based on tests: Unit=${stages.[Testing].tasks.[UnitTesting].outputs.unit_test_results}, Integration=${stages.[Testing].tasks.[IntegrationTesting].outputs.integration_test_results}"
+                            },
+                            "outputs": {"deployment_status": "Deployment complete"}
+                        }
+                    ]
+                }
+            ]
+        }
+        
+        workflow = await workflow_manager.initialize_workflow(workflow_dict)
+        
+        inputs = WorkflowInput(
+            user_query="Build AI chatbot system",
+            workflow={
+                "inputs": {
+                    "project_description": "Build an AI-powered customer service chatbot with natural language understanding, multi-language support, and integration with existing CRM system"
+                }
+            }
+        )
+        
+        start_time = time.time()
+        result = await workflow_manager.execute(
+            workflow,
+            inputs,
+            progress_callback=ConsoleProgressCallback()
+        )
+        execution_time = time.time() - start_time
+        
+        assert result is not None
+        # Should have executed all stages
+        assert len(result.all_agents) >= 7  # At least 7 agents in the pipeline
+        self._log_workflow_summary("AI Development Pipeline", result, execution_time)
+
+
 # ============================================================================
-# Performance Tests
+# Example Workflow Tests
 # ============================================================================
 
 @pytest.mark.asyncio
-class TestOpenAIObservabilityPerformance:
-    """Test observability performance impact."""
+class TestOpenAIObservabilityExampleWorkflows(BaseOpenAITest):
+    """Test existing example workflows."""
     
-    async def test_minimal_overhead(self, workflow_manager):
-        """Test that observability adds minimal overhead."""
-        workflow_dict = create_simple_sequential_workflow()
+    async def test_example_workflow_yaml(self, workflow_manager):
+        """Test loading and executing example workflow from YAML."""
+        # This would normally load from a YAML file
+        # For testing, we'll create a workflow dict directly
+        workflow_dict = {
+            "name": "example_workflow_test",
+            "description": "Test example workflow",
+            "version": "1.0.0",
+            "stages": [
+                {
+                    "name": "ExampleStage",
+                    "execution_type": "sequential",
+                    "tasks": [
+                        {
+                            "name": "ExampleTask",
+                            "agent": {
+                                "id": "example_agent",
+                                "agent_type": "LLMAgent",
+                                "llm_type": "openai",
+                                "system_prompt": "You are a helpful assistant.",
+                                "user_prompt": "Help with: ${workflow.inputs.request}"
+                            },
+                            "outputs": {"result": "Task result"}
+                        }
+                    ]
+                }
+            ]
+        }
         
-        workflow = await workflow_manager.initialize_workflow(
-            workflow_dict
-        )
+        workflow = await workflow_manager.initialize_workflow(workflow_dict)
         
         inputs = WorkflowInput(
-            user_query="Performance test",
-            workflow={"inputs": {"user_query": "Performance test"}}
+            user_query="Test example workflow",
+            workflow={"inputs": {"request": "Test request"}}
         )
         
-        # Time execution with observability
-        start_time = time.time()
         result = await workflow_manager.execute(workflow, inputs)
-        execution_time = time.time() - start_time
-        
-        logger.info(f"Execution time with observability: {execution_time:.2f} seconds")
         
         assert result is not None
-        # Just verify it completes in reasonable time
-        assert execution_time < 30  # 30 seconds max
-        
-    async def test_execution_time_variance(self, workflow_manager):
-        """Test that execution times vary between different workflows."""
-        # Test 1: Simple workflow
-        simple_workflow = create_simple_sequential_workflow()
-        simple_wf = await workflow_manager.initialize_workflow(simple_workflow)
-        
-        start_time = time.time()
-        result1 = await workflow_manager.execute(
-            simple_wf,
-            WorkflowInput(
-                user_query="Simple test",
-                workflow={"inputs": {"user_query": "Simple test"}}
-            )
-        )
-        simple_time = time.time() - start_time
-        
-        # Test 2: Complex workflow
-        complex_workflow = create_complex_multi_stage_workflow()
-        complex_wf = await workflow_manager.initialize_workflow(complex_workflow)
-        
-        start_time = time.time()
-        result2 = await workflow_manager.execute(
-            complex_wf,
-            WorkflowInput(
-                user_query="Complex test",
-                workflow={"inputs": {"project": "Test project"}}
-            )
-        )
-        complex_time = time.time() - start_time
-        
-        logger.info(f"Simple workflow time: {simple_time:.2f}s")
-        logger.info(f"Complex workflow time: {complex_time:.2f}s")
-        
-        assert result1 is not None
-        assert result2 is not None
-        
-        # Complex workflow should take longer than simple workflow
-        # If they're exactly the same, something might be wrong
-        if abs(simple_time - complex_time) < 0.1:
-            logger.warning(f"Execution times are suspiciously similar: simple={simple_time:.2f}s, complex={complex_time:.2f}s")

@@ -2,7 +2,8 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, asdict
 from enum import Enum
-from typing import Any, Dict, List, Optional, Type, TypedDict, TypeVar, Union, Literal, NewType
+from typing import Any, Dict, List, Optional, Type, TypedDict, TypeVar, Union, Literal, NewType, cast, Tuple
+from types import EllipsisType
 
 from pydantic import (
     BaseModel,
@@ -125,16 +126,15 @@ class DynamicModelGenerator(ModelGenerator):
             "int": int,
             "float": float,
             "bool": bool,
-            "dict": dict,
-            "list": list,
+            "dict": Dict,
+            "list": List,
         }
 
         if type_str == "list" and item_type:
-            # Handle list with specified item type
-            item_python_type = DynamicModelGenerator._get_field_type(item_type)
+            item_python_type: Type[Any] = DynamicModelGenerator._get_field_type(item_type)
             return List[item_python_type]
         elif type_str in basic_types:
-            return basic_types[type_str]
+            return basic_types[type_str] 
         else:
             # Assume it's a reference to another model
             if ModelRegistry.has(type_str):
@@ -142,6 +142,7 @@ class DynamicModelGenerator(ModelGenerator):
             else:
                 # Default to Any if model not found (will be resolved later)
                 return Any
+
 
     def create_model(self, name: str, schema: Dict[str, Any]) -> Type[BaseModel]:
         """Create a Pydantic model from a schema definition."""
@@ -170,7 +171,7 @@ class DynamicModelGenerator(ModelGenerator):
             fields[field_name] = (field_type, Field(**field_args))
 
         # Create the model
-        model = create_model(name, **fields, __base__=BaseModel)
+        model = create_model(name, **cast(Any, fields), __base__=BaseModel)
 
         # Register the model for future reference
         ModelRegistry.register(name, model)
@@ -225,30 +226,24 @@ class AgentConfig(BaseModel):
     retry: Optional[Dict[str, Any]] = None
 
     @root_validator(skip_on_failure=True)
-    def validate_agent_config(cls, values):
+    def validate_agent_config(cls, values: dict[str, "LLMAgent"]) -> dict[str, "LLMAgent"]:
         """Ensure that either ref or agent_type is provided."""
         if not values.get("ref") and not values.get("agent_type"):
             raise ValueError("Either 'ref' or 'agent_type' must be provided")
         return values
-
+    
     @computed_field
-    @property
-    def pydantic_output_schema(self) -> Union[type[BaseModel], None]:
+    def pydantic_output_schema(self) -> Union[Type[BaseModel], None]:
         """
-        Convert the agent's output_schema to a Pydantic model.
-
-        Returns:
-            A dynamically created Pydantic model class based on the output schema
+        Internal method to convert the agent's output_schema to a Pydantic model.
         """
         if not self.output_schema:
-            # Return none so it can be handled at call site
             return None
 
         spec = self.output_schema
         agent_name = self.id
 
-        # DSL → Python types
-        type_map: dict[str, type] = {
+        type_map : dict[str, type] = {
             "str": str,
             "string": str,
             "int": int,
@@ -259,26 +254,29 @@ class AgentConfig(BaseModel):
             "boolean": bool,
             "list": List,
             "array": List,
-            "dict": dict,
-            "object": dict,
+            "dict": Dict, 
+            "object": Dict,
         }
-
-        pydantic_fields: dict[str, tuple[type, object]] = {}
+        
+        pydantic_fields: Dict[str, Any] = {} 
         for field_name, info in spec.items():
-            # pick the base type (or default to str)
             raw = type_map.get(info["type"], str)
-            # if it’s a List, force-parameterize with item_type (default to str)
+
+            base: Type[Any] # cast to Any for type compatibility since it can be any of the types in type_map
+
             if raw is List:
                 item_py = type_map.get(info.get("item_type", "string"), str)
-                base = List[item_py]  # <-- now List[str], List[int], etc.
+                base = List[item_py] 
             else:
                 base = raw
 
             default = ... if info.get("required", True) else None
             pydantic_fields[field_name] = (base, default)
 
+
         model_name = f"{agent_name.replace(' ', '')}"
         return create_model(model_name, __base__=BaseModel, **pydantic_fields)
+    
 
 
 class WorkflowTask(BaseModel):
@@ -287,7 +285,7 @@ class WorkflowTask(BaseModel):
     name: str
     description: Optional[str] = None
     agent: AgentConfig
-    prompt: str = None
+    prompt: str
     inputs: Optional[Dict[str, Any]] = None
     outputs: Optional[Dict[str, Any]] = None
     condition: Optional[str] = None
@@ -397,7 +395,7 @@ class WorkflowStage(BaseModel):
 
     @model_validator(mode="before")
     @classmethod
-    def validate_execution_type(cls, data):
+    def validate_execution_type(cls: Type["WorkflowStage"], data: Dict[str, Any]) -> Dict[str, Any]:
         """Validate the execution_type field and convert string to enum if needed."""
         if isinstance(data, dict) and "execution_type" in data:
             exec_type = data["execution_type"]
@@ -482,8 +480,7 @@ class LLMAgent(BaseModel):
         spec = self.output_schema
         agent_name = self.id
 
-        # DSL → Python types
-        type_map: dict[str, type] = {
+        type_map: dict[str, Type] = {
             "str": str,
             "string": str,
             "int": int,
@@ -494,20 +491,20 @@ class LLMAgent(BaseModel):
             "boolean": bool,
             "list": List,
             "array": List,
-            "dict": dict,
-            "object": dict,
+            "dict": Dict,
+            "object": Dict,
         }
 
-        pydantic_fields: dict[str, tuple[type, object]] = {}
+        pydantic_fields: Dict[str, Tuple[Type, object]] = {}
         for field_name, info in spec.items():
             # pick the base type (or default to str)
             field_type = info.get("type", "string")
             raw = type_map.get(field_type, str)
-
+            base: Type[Any]
             # if it's a List, force-parameterize with item_type (default to str)
             if raw is List:
                 item_py = type_map.get(info.get("item_type", "string"), str)
-                base = List[item_py]  # <-- now List[str], List[int], etc.
+                base = List[item_py]  
             else:
                 base = raw
 
@@ -515,7 +512,7 @@ class LLMAgent(BaseModel):
             pydantic_fields[field_name] = (base, default)
 
         model_name = f"{agent_name.replace(' ', '')}"
-        return create_model(model_name, __base__=BaseModel, **pydantic_fields)
+        return create_model(model_name, __base__=BaseModel, **cast(Any, pydantic_fields))
 
 
 # Workflow Input Model
@@ -611,20 +608,22 @@ class GeminiProviderConfig(BaseProviderConfig):
         return self
 
 
+
 class ProviderConfiguration(BaseModel):
     """Configuration for all providers in a workflow"""
 
     providers: Dict[
         str,
-        BaseProviderConfig,
-    ]
+        BaseProviderConfig
+    ] = Field(default_factory=dict) # Initialize as empty dict
 
     @classmethod
     def from_dict(
         cls, provider_dict: Dict[str, Dict[str, Any]]
     ) -> "ProviderConfiguration":
         """Create a ProviderConfiguration from a dictionary of provider configs"""
-        provider_configs = {}
+        #provider_configs = {}
+        provider_configs: Dict[str, BaseProviderConfig] = {} # Hard type for better type checking for line 669
 
         for provider_id, config in provider_dict.items():
             # Process model_settings if it exists
@@ -638,6 +637,7 @@ class ProviderConfiguration(BaseModel):
                 model_settings = None
 
             provider_type = config.get("provider_type")
+            provider_config: BaseProviderConfig
             if provider_type == ProviderType.OPENAI:
                 provider_config = OpenAIProviderConfig.parse_obj(config)
             elif provider_type == ProviderType.ANTHROPIC:
@@ -722,15 +722,16 @@ class ResponseStore(BaseModel):
         if task not in self.responses[stage]:
             raise ValueError(f"Task '{task}' not found in stage '{stage}'")
 
-        if key is None:
-            return self.responses[stage][task]
+        task_result_object = self.responses[stage][task]
 
-        if key not in self.responses[stage][task]:
+        if key is None:
+            return task_result_object.result
+
+        if key not in task_result_object.result:
             raise ValueError(
                 f"Key '{key}' not found in task '{task}' of stage '{stage}'"
             )
-
-        return self.responses[stage][task][key]
+        return task_result_object.result[key]
 
     def has_stage(self, stage: str) -> bool:
         """Check if a stage exists in the response store."""
@@ -745,7 +746,7 @@ class ResponseStore(BaseModel):
         return (
             stage in self.responses
             and task in self.responses[stage]
-            and key in self.responses[stage][task]
+            and key in self.responses[stage][task].result
         )
 
     def get_stages(self) -> List[str]:
@@ -764,9 +765,9 @@ class ResponseStore(BaseModel):
             raise ValueError(f"Stage '{stage}' not found")
         if task not in self.responses[stage]:
             raise ValueError(f"Task '{task}' not found in stage '{stage}'")
-        return list(self.responses[stage][task].keys())
+        return list(self.responses[stage][task].result.keys())
 
-    def to_dict(self) -> Dict[str, Dict[str, Dict[str, Any]]]:
+    def to_dict(self) -> Dict[str, Dict[str, "TaskExecutionResult"]]:
         """Convert to a nested dictionary."""
         return self.responses
 
@@ -858,6 +859,10 @@ class TaskExecutionResult:
         True  # Whether the output is enforced to be structured according to the schema
     )
 
+    def get_task_result(self, task_name: str) -> Optional[Dict[str, Any]]:
+        """Get the result of a specific task."""
+        return self.result.get(task_name)
+
 
 # support for MCP
 
@@ -866,6 +871,7 @@ class MCPServerType(str, Enum):
     """Type of MCP server."""
 
     STDIO = "stdio"
+    SSE = "sse"
     STREAMABLE_HTTP = "streamable_http"
 
 

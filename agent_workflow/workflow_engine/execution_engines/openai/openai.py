@@ -15,7 +15,6 @@ from agent_workflow.providers import FunctionTool, OpenAITool, ToolRegistry
 
 from agent_workflow.providers.mcp import MCPServerRegistry
 from agent_workflow.providers.llm_tracing_utils import LLMTracer
-from agent_workflow.providers.llm_observability import TraceStatus
 # Using LLMTracer now
 from agent_workflow.workflow_engine.execution_engines.base import (
     ExecutionEngine,
@@ -57,6 +56,7 @@ class EngineContext:
     function_tool: Callable
     MCPServerSse: Any
     MCPServerStdio: Any
+    MCPServerStreamableHttp: Any
     AgentsModelSettings: Any
     tool_registry: Optional[ToolRegistry]
     mcp_registry: Optional[MCPServerRegistry]
@@ -77,7 +77,7 @@ def init_context(
 ) -> EngineContext:
     try:
         from agents import Agent, Runner, function_tool, ModelSettings as AgentsModelSettings
-        from agents.mcp import MCPServerSse, MCPServerStdio
+        from agents.mcp import MCPServerSse, MCPServerStdio, MCPServerStreamableHttp
         logger.info("Using the OpenAI Agents SDK")
     except ImportError:
         logger.error(
@@ -111,6 +111,7 @@ def init_context(
         function_tool=function_tool,
         MCPServerSse=MCPServerSse,
         MCPServerStdio=MCPServerStdio,
+        MCPServerStreamableHttp=MCPServerStreamableHttp,
         AgentsModelSettings=AgentsModelSettings,
         tool_registry=tool_registry,
         mcp_registry=mcp_registry,
@@ -201,6 +202,13 @@ async def _create_mcp_server(ctx: EngineContext, server_name: str) -> Any:
         return None
     if config.server_type is MCPServerType.STDIO:
         server = ctx.MCPServerStdio(
+            name=config.name,
+            params=config.params,
+            cache_tools_list=config.cache_tools_list,
+            client_session_timeout_seconds=config.client_session_timeout,
+        )
+    if config.server_type is MCPServerType.STREAMABLE_HTTP:
+        server = ctx.MCPServerStreamableHttp(
             name=config.name,
             params=config.params,
             cache_tools_list=config.cache_tools_list,
@@ -407,7 +415,7 @@ async def execute_workflow(
         duration_ms = int((time.time() - start_time) * 1000)
         await ctx.llm_tracer.end_workflow_tracing(
             group_id=group_id,
-            status=TraceStatus.SUCCESS,
+            status="completed",
             metadata={"tags": {"duration_ms": str(duration_ms)}}
         )
         
@@ -421,7 +429,7 @@ async def execute_workflow(
         duration_ms = int((time.time() - start_time) * 1000)
         await ctx.llm_tracer.end_workflow_tracing(
             group_id=group_id,
-            status=TraceStatus.FAILED,
+            status="failed",
             error=e,
             metadata={"tags": {"duration_ms": str(duration_ms)}}
         )
@@ -600,27 +608,12 @@ async def execute_task(
             response=raw,
         )
 
-        # Extract usage metrics from the context_wrapper into a dictionary
-        usage = result.context_wrapper.usage
-        metadata_dict = {
-            "request_data": {
-                "input_tokens": usage.input_tokens,
-                "output_tokens": usage.output_tokens,
-                "total_tokens": usage.total_tokens
-            },
-            "tags": {
-                "requests": str(usage.requests)
-            }
-        }
-        
-        # End the task trace with metadata
-        await ctx.llm_tracer.end_task_trace(
-            status=TraceStatus.SUCCESS,
-            system_prompt=task.agent.system_prompt,
-            prompt=prompt,
-            response=raw,
-            metadata_dict=metadata_dict
-        )
+        # End the task trace
+        await ctx.llm_tracer.end_task_trace(status="completed",
+                                      system_prompt= task.agent.system_prompt,
+                                      prompt=prompt,
+                                      response=raw
+                                      )
         
         tr = TaskExecutionResult(task_name, out, completed=True, structured_output_enforced=enforce_structured)
         ao = AgentOutput(agent=task_name, output=out)
@@ -630,27 +623,13 @@ async def execute_task(
     except Exception as e:
         # Log error in the LLM observability
 
-        # Create error metadata dictionary
-        metadata_dict = {
-            "request_data": {
-                "input_tokens": 0,  # We don't have metrics in case of error
-                "output_tokens": 0,
-                "total_tokens": 0
-            },
-            "tags": {
-                "error": str(e),
-                "error_type": type(e).__name__
-            }
-        }
-        
-        # End the task trace with error and metadata
+        # End the task trace with error
         await ctx.llm_tracer.end_task_trace(
-            status=TraceStatus.FAILED,
+            status="failed",
             error=e,
-            system_prompt=task.agent.system_prompt,
+            system_prompt= task.agent.system_prompt,
             prompt=prompt,
-            response=None,
-            metadata_dict=metadata_dict
+            response=None
         )
         logger.error(f"Error executing task {task_name}: {e}")
         return await _fail(task_name, e)
