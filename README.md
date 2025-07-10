@@ -52,7 +52,7 @@ source .venv/bin/activate  # On Linux/macOS
 # .venv\Scripts\activate  # On Windows
 
 # Install dependencies
-uv sync
+uv sync --all-extras
 
 # Alternative: Use the setup script
 chmod +x setup_dev_with_uv.sh
